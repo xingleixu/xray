@@ -10,46 +10,30 @@
 #include "xray.h"
 #include "xast.h"
 #include "xvalue.h"
+#include "xscope.h"
 
 /*
 ** 主要求值函数
-** 遍历 AST 节点并返回计算结果
+** 遍历 AST 节点并返回计算结果（内部创建符号表）
 */
 XrValue xr_eval(XrayState *X, AstNode *node);
 
-/* ========== 内部求值函数 ========== */
+/*
+** 使用外部符号表的求值函数（用于 REPL）
+** 允许跨多次调用保持变量状态
+*/
+XrValue xr_eval_with_symbols(XrayState *X, AstNode *node, XSymbolTable *symbols);
+
+/* ========== 内部求值函数（供 xeval.c 内部使用）========== */
+/* 这些函数现在是 xeval.c 的内部静态函数，不对外暴露 */
 
 /*
-** 字面量求值
+** 变量相关求值
 */
-XrValue xr_eval_literal(XrayState *X, AstNode *node);
-
-/*
-** 二元运算求值
-** 支持算术、比较、逻辑运算，包括短路求值
-*/
-XrValue xr_eval_binary(XrayState *X, AstNode *node);
-
-/*
-** 一元运算求值
-*/
-XrValue xr_eval_unary(XrayState *X, AstNode *node);
-
-/*
-** 分组表达式求值（括号）
-*/
-XrValue xr_eval_grouping(XrayState *X, AstNode *node);
-
-/*
-** 语句求值
-*/
-XrValue xr_eval_expr_stmt(XrayState *X, AstNode *node);
-XrValue xr_eval_print_stmt(XrayState *X, AstNode *node);
-
-/*
-** 程序求值（执行多个语句）
-*/
-XrValue xr_eval_program(XrayState *X, AstNode *node);
+XrValue xr_eval_var_decl(XrayState *X, AstNode *node, XSymbolTable *symbols);
+XrValue xr_eval_variable(XrayState *X, AstNode *node, XSymbolTable *symbols);
+XrValue xr_eval_assignment(XrayState *X, AstNode *node, XSymbolTable *symbols);
+XrValue xr_eval_block(XrayState *X, AstNode *node, XSymbolTable *symbols);
 
 /* ========== 运算辅助函数 ========== */
 
@@ -73,10 +57,9 @@ XrValue xr_eval_greater(XrayState *X, XrValue left, XrValue right);
 XrValue xr_eval_greater_equal(XrayState *X, XrValue left, XrValue right);
 
 /*
-** 逻辑运算（支持短路求值）
+** 逻辑运算（支持短路求值） - 现在是内部函数
 */
-XrValue xr_eval_logical_and(XrayState *X, AstNode *left_node, AstNode *right_node);
-XrValue xr_eval_logical_or(XrayState *X, AstNode *left_node, AstNode *right_node);
+/* 逻辑非仍然是公开的，因为可能被其他地方调用 */
 XrValue xr_eval_logical_not(XrayState *X, XrValue operand);
 
 /*

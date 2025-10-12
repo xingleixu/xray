@@ -9,6 +9,7 @@
 
 #include "xray.h"
 #include "xvalue.h"
+#include <stdbool.h>
 
 /* 前向声明 */
 typedef struct AstNode AstNode;
@@ -55,6 +56,13 @@ typedef enum {
     /* 语句节点 */
     AST_EXPR_STMT,          /* 表达式语句 */
     AST_PRINT_STMT,         /* print 语句（内置） */
+    AST_BLOCK,              /* 代码块：{ ... } */
+    
+    /* 变量相关节点 */
+    AST_VAR_DECL,           /* 变量声明：let x = 10 */
+    AST_CONST_DECL,         /* 常量声明：const PI = 3.14 */
+    AST_VARIABLE,           /* 变量引用：x */
+    AST_ASSIGNMENT,         /* 赋值：x = 10 */
     
     /* 程序节点 */
     AST_PROGRAM             /* 程序根节点 */
@@ -104,6 +112,43 @@ typedef struct {
 } PrintNode;
 
 /*
+** 代码块节点
+** 包含一系列语句
+*/
+typedef struct {
+    AstNode **statements;   /* 语句数组 */
+    int count;              /* 语句数量 */
+    int capacity;           /* 数组容量 */
+} BlockNode;
+
+/*
+** 变量声明节点
+** let x = 10 或 let x（无初始化）
+*/
+typedef struct {
+    char *name;             /* 变量名 */
+    AstNode *initializer;   /* 初始化表达式（可选） */
+    bool is_const;          /* 是否为常量 */
+} VarDeclNode;
+
+/*
+** 变量引用节点
+** 引用一个变量：x
+*/
+typedef struct {
+    char *name;             /* 变量名 */
+} VariableNode;
+
+/*
+** 赋值节点
+** x = 10
+*/
+typedef struct {
+    char *name;             /* 变量名 */
+    AstNode *value;         /* 赋值表达式 */
+} AssignmentNode;
+
+/*
 ** AST 节点通用结构
 ** 所有节点类型的基础
 */
@@ -113,13 +158,17 @@ struct AstNode {
     
     /* 节点数据（根据类型使用不同的字段） */
     union {
-        LiteralNode literal;    /* 字面量 */
-        BinaryNode binary;      /* 二元运算 */
-        UnaryNode unary;        /* 一元运算 */
-        AstNode *grouping;      /* 分组表达式 */
-        AstNode *expr_stmt;     /* 表达式语句 */
-        PrintNode print_stmt;   /* print 语句 */
-        ProgramNode program;    /* 程序 */
+        LiteralNode literal;        /* 字面量 */
+        BinaryNode binary;          /* 二元运算 */
+        UnaryNode unary;            /* 一元运算 */
+        AstNode *grouping;          /* 分组表达式 */
+        AstNode *expr_stmt;         /* 表达式语句 */
+        PrintNode print_stmt;       /* print 语句 */
+        BlockNode block;            /* 代码块 */
+        VarDeclNode var_decl;       /* 变量声明 */
+        VariableNode variable;      /* 变量引用 */
+        AssignmentNode assignment;  /* 赋值 */
+        ProgramNode program;        /* 程序 */
     } as;
 };
 
@@ -154,6 +203,23 @@ AstNode *xr_ast_program(XrayState *X);
 
 /* 向程序节点添加语句 */
 void xr_ast_program_add(XrayState *X, AstNode *program, AstNode *stmt);
+
+/* 创建代码块节点 */
+AstNode *xr_ast_block(XrayState *X, int line);
+
+/* 向代码块添加语句 */
+void xr_ast_block_add(XrayState *X, AstNode *block, AstNode *stmt);
+
+/* 创建变量声明节点 */
+AstNode *xr_ast_var_decl(XrayState *X, const char *name, 
+                         AstNode *initializer, bool is_const, int line);
+
+/* 创建变量引用节点 */
+AstNode *xr_ast_variable(XrayState *X, const char *name, int line);
+
+/* 创建赋值节点 */
+AstNode *xr_ast_assignment(XrayState *X, const char *name, 
+                           AstNode *value, int line);
 
 /* 释放 AST 节点 */
 void xr_ast_free(XrayState *X, AstNode *node);

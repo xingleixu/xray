@@ -49,7 +49,7 @@ static ParseRule rules[] = {
     [TK_NOT]        = {xr_parse_unary,    NULL,           PREC_NONE},
     
     /* 赋值 */
-    [TK_ASSIGN]     = {NULL,              NULL,           PREC_NONE},
+    [TK_ASSIGN]     = {NULL,              xr_parse_assignment, PREC_ASSIGNMENT},
     
     /* 关键字 */
     [TK_LET]        = {NULL,              NULL,           PREC_NONE},
@@ -71,7 +71,7 @@ static ParseRule rules[] = {
     [TK_INT]        = {xr_parse_literal,  NULL,           PREC_NONE},
     [TK_FLOAT]      = {xr_parse_literal,  NULL,           PREC_NONE},
     [TK_STRING]     = {xr_parse_literal,  NULL,           PREC_NONE},
-    [TK_NAME]       = {NULL,              NULL,           PREC_NONE},
+    [TK_NAME]       = {xr_parse_variable, NULL,           PREC_NONE},
     
     /* 特殊 */
     [TK_EOF]        = {NULL,              NULL,           PREC_NONE},
@@ -248,7 +248,7 @@ AstNode *xr_parse_precedence(Parser *parser, Precedence precedence) {
 ** 解析表达式（入口函数）
 */
 AstNode *xr_parse_expression(Parser *parser) {
-    return xr_parse_precedence(parser, PREC_OR);  /* 从最低优先级开始 */
+    return xr_parse_precedence(parser, PREC_ASSIGNMENT);  /* 从最低优先级开始（包括赋值） */
 }
 
 /* ========== 前缀解析函数 ========== */
@@ -435,15 +435,15 @@ AstNode *xr_parse(XrayState *X, const char *source) {
     /* 预读第一个 Token */
     xr_parser_advance(&parser);
     
-    /* 解析语句列表，直到文件结束 */
+    /* 解析声明列表，直到文件结束 */
     while (!xr_parser_check(&parser, TK_EOF)) {
         if (parser.panic_mode) {
             xr_parser_synchronize(&parser);
         }
         
-        AstNode *stmt = xr_parse_statement(&parser);
-        if (stmt != NULL) {
-            xr_ast_program_add(X, program, stmt);
+        AstNode *decl = xr_parse_declaration(&parser);
+        if (decl != NULL) {
+            xr_ast_program_add(X, program, decl);
         }
         
         /* 如果有错误，停止解析 */
@@ -457,4 +457,125 @@ AstNode *xr_parse(XrayState *X, const char *source) {
     }
     
     return program;
+}
+
+/* ========== 变量相关解析函数 ========== */
+
+/*
+** 解析变量引用：x
+** 这是一个前缀解析函数
+*/
+AstNode *xr_parse_variable(Parser *parser) {
+    /* parser->previous 是变量名 Token */
+    char *name = (char *)malloc(parser->previous.length + 1);
+    memcpy(name, parser->previous.start, parser->previous.length);
+    name[parser->previous.length] = '\0';
+    
+    AstNode *node = xr_ast_variable(parser->X, name, parser->previous.line);
+    free(name);
+    return node;
+}
+
+/*
+** 解析赋值：x = expression
+** 这是一个中缀解析函数，left 是变量引用节点
+*/
+AstNode *xr_parse_assignment(Parser *parser, AstNode *left) {
+    /* 检查左边是否为变量引用 */
+    if (left->type != AST_VARIABLE) {
+        xr_parser_error(parser, "赋值目标必须是变量");
+        xr_ast_free(parser->X, left);
+        return NULL;
+    }
+    
+    /* 保存变量名 */
+    char *name = strdup(left->as.variable.name);
+    int line = left->line;
+    
+    /* 释放变量引用节点（我们不再需要它） */
+    xr_ast_free(parser->X, left);
+    
+    /* 解析赋值表达式 */
+    AstNode *value = xr_parse_expression(parser);
+    
+    AstNode *node = xr_ast_assignment(parser->X, name, value, line);
+    free(name);
+    return node;
+}
+
+/*
+** 解析变量声明：let x = 10 或 const PI = 3.14
+** is_const: 是否为常量声明
+*/
+AstNode *xr_parse_var_declaration(Parser *parser, int is_const) {
+    /* 期望变量名 */
+    xr_parser_consume(parser, TK_NAME, "期望变量名");
+    
+    /* 保存变量名 */
+    char *name = (char *)malloc(parser->previous.length + 1);
+    memcpy(name, parser->previous.start, parser->previous.length);
+    name[parser->previous.length] = '\0';
+    int line = parser->previous.line;
+    
+    AstNode *initializer = NULL;
+    
+    /* 检查是否有初始化表达式 */
+    if (xr_parser_match(parser, TK_ASSIGN)) {
+        /* 解析初始化表达式 */
+        initializer = xr_parse_expression(parser);
+    } else if (is_const) {
+        /* 常量必须初始化 */
+        xr_parser_error(parser, "常量必须初始化");
+        free(name);
+        return NULL;
+    }
+    
+    AstNode *node = xr_ast_var_decl(parser->X, name, initializer, is_const, line);
+    free(name);
+    return node;
+}
+
+/*
+** 解析代码块：{ ... }
+*/
+AstNode *xr_parse_block(Parser *parser) {
+    int line = parser->previous.line;
+    AstNode *block = xr_ast_block(parser->X, line);
+    
+    /* 解析代码块中的声明，直到遇到 } */
+    while (!xr_parser_check(parser, TK_RBRACE) && !xr_parser_check(parser, TK_EOF)) {
+        AstNode *decl = xr_parse_declaration(parser);
+        if (decl != NULL) {
+            xr_ast_block_add(parser->X, block, decl);
+        }
+        
+        if (parser->had_error) break;
+    }
+    
+    xr_parser_consume(parser, TK_RBRACE, "期望 '}' 在代码块结束");
+    
+    return block;
+}
+
+/*
+** 解析声明（变量声明、常量声明或语句）
+*/
+AstNode *xr_parse_declaration(Parser *parser) {
+    /* 变量声明 */
+    if (xr_parser_match(parser, TK_LET)) {
+        return xr_parse_var_declaration(parser, 0);  /* 0 表示可变变量 */
+    }
+    
+    /* 常量声明 */
+    if (xr_parser_match(parser, TK_CONST)) {
+        return xr_parse_var_declaration(parser, 1);  /* 1 表示常量 */
+    }
+    
+    /* 代码块 */
+    if (xr_parser_match(parser, TK_LBRACE)) {
+        return xr_parse_block(parser);
+    }
+    
+    /* 否则解析为语句 */
+    return xr_parse_statement(parser);
 }

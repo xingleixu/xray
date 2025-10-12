@@ -180,6 +180,105 @@ void xr_ast_program_add(XrayState *X, AstNode *program, AstNode *stmt) {
     program->as.program.statements[program->as.program.count++] = stmt;
 }
 
+/* ========== 代码块节点操作 ========== */
+
+/*
+** 创建代码块节点
+** 代码块包含多个语句
+*/
+AstNode *xr_ast_block(XrayState *X, int line) {
+    AstNode *node = alloc_node(X, AST_BLOCK, line);
+    node->as.block.statements = NULL;
+    node->as.block.count = 0;
+    node->as.block.capacity = 0;
+    return node;
+}
+
+/*
+** 向代码块添加语句
+*/
+void xr_ast_block_add(XrayState *X, AstNode *block, AstNode *stmt) {
+    /* 确保有足够空间 */
+    if (block->as.block.count >= block->as.block.capacity) {
+        int old_capacity = block->as.block.capacity;
+        int new_capacity = old_capacity < INITIAL_CAPACITY ? 
+                          INITIAL_CAPACITY : old_capacity * 2;
+        
+        block->as.block.statements = (AstNode **)realloc(
+            block->as.block.statements,
+            sizeof(AstNode *) * new_capacity
+        );
+        
+        if (block->as.block.statements == NULL) {
+            fprintf(stderr, "内存分配失败\n");
+            exit(1);
+        }
+        
+        block->as.block.capacity = new_capacity;
+    }
+    
+    /* 添加语句 */
+    block->as.block.statements[block->as.block.count++] = stmt;
+}
+
+/* ========== 变量相关节点创建 ========== */
+
+/*
+** 创建变量声明节点
+** name: 变量名
+** initializer: 初始化表达式（可以为 NULL）
+** is_const: 是否为常量
+*/
+AstNode *xr_ast_var_decl(XrayState *X, const char *name, 
+                         AstNode *initializer, bool is_const, int line) {
+    AstNode *node = alloc_node(X, is_const ? AST_CONST_DECL : AST_VAR_DECL, line);
+    node->as.var_decl.name = strdup(name);
+    node->as.var_decl.initializer = initializer;
+    node->as.var_decl.is_const = is_const;
+    
+    if (node->as.var_decl.name == NULL) {
+        fprintf(stderr, "内存分配失败\n");
+        exit(1);
+    }
+    
+    return node;
+}
+
+/*
+** 创建变量引用节点
+** name: 变量名
+*/
+AstNode *xr_ast_variable(XrayState *X, const char *name, int line) {
+    AstNode *node = alloc_node(X, AST_VARIABLE, line);
+    node->as.variable.name = strdup(name);
+    
+    if (node->as.variable.name == NULL) {
+        fprintf(stderr, "内存分配失败\n");
+        exit(1);
+    }
+    
+    return node;
+}
+
+/*
+** 创建赋值节点
+** name: 变量名
+** value: 赋值表达式
+*/
+AstNode *xr_ast_assignment(XrayState *X, const char *name, 
+                           AstNode *value, int line) {
+    AstNode *node = alloc_node(X, AST_ASSIGNMENT, line);
+    node->as.assignment.name = strdup(name);
+    node->as.assignment.value = value;
+    
+    if (node->as.assignment.name == NULL) {
+        fprintf(stderr, "内存分配失败\n");
+        exit(1);
+    }
+    
+    return node;
+}
+
 /* ========== AST 释放 ========== */
 
 /*
@@ -245,6 +344,36 @@ void xr_ast_free(XrayState *X, AstNode *node) {
             xr_ast_free(X, node->as.print_stmt.expr);
             break;
         
+        /* 代码块 */
+        case AST_BLOCK:
+            for (int i = 0; i < node->as.block.count; i++) {
+                xr_ast_free(X, node->as.block.statements[i]);
+            }
+            if (node->as.block.statements != NULL) {
+                free(node->as.block.statements);
+            }
+            break;
+        
+        /* 变量声明 */
+        case AST_VAR_DECL:
+        case AST_CONST_DECL:
+            free(node->as.var_decl.name);
+            if (node->as.var_decl.initializer != NULL) {
+                xr_ast_free(X, node->as.var_decl.initializer);
+            }
+            break;
+        
+        /* 变量引用 */
+        case AST_VARIABLE:
+            free(node->as.variable.name);
+            break;
+        
+        /* 赋值 */
+        case AST_ASSIGNMENT:
+            free(node->as.assignment.name);
+            xr_ast_free(X, node->as.assignment.value);
+            break;
+        
         /* 程序节点 */
         case AST_PROGRAM:
             for (int i = 0; i < node->as.program.count; i++) {
@@ -292,6 +421,11 @@ const char *xr_ast_typename(AstNodeType type) {
         case AST_GROUPING:          return "Grouping";
         case AST_EXPR_STMT:         return "ExprStmt";
         case AST_PRINT_STMT:        return "PrintStmt";
+        case AST_BLOCK:             return "Block";
+        case AST_VAR_DECL:          return "VarDecl";
+        case AST_CONST_DECL:        return "ConstDecl";
+        case AST_VARIABLE:          return "Variable";
+        case AST_ASSIGNMENT:        return "Assignment";
         case AST_PROGRAM:           return "Program";
         default:                    return "Unknown";
     }
@@ -373,6 +507,31 @@ void xr_ast_print(AstNode *node, int indent) {
         
         case AST_PRINT_STMT:
             xr_ast_print(node->as.print_stmt.expr, indent + 1);
+            break;
+        
+        case AST_BLOCK:
+            for (int i = 0; i < node->as.block.count; i++) {
+                xr_ast_print(node->as.block.statements[i], indent + 1);
+            }
+            break;
+        
+        case AST_VAR_DECL:
+        case AST_CONST_DECL:
+            printf("%*s  name: %s\n", indent * 2, "", node->as.var_decl.name);
+            if (node->as.var_decl.initializer != NULL) {
+                printf("%*s  initializer:\n", indent * 2, "");
+                xr_ast_print(node->as.var_decl.initializer, indent + 2);
+            }
+            break;
+        
+        case AST_VARIABLE:
+            printf("%*s  name: %s\n", indent * 2, "", node->as.variable.name);
+            break;
+        
+        case AST_ASSIGNMENT:
+            printf("%*s  name: %s\n", indent * 2, "", node->as.assignment.name);
+            printf("%*s  value:\n", indent * 2, "");
+            xr_ast_print(node->as.assignment.value, indent + 2);
             break;
         
         case AST_PROGRAM:

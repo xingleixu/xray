@@ -1,0 +1,22 @@
+// 08_scope.xr - 作用域测试
+
+// 全局变量
+let x = 10
+print(x)
+
+// 内层作用域
+{
+    let x = 20
+    print(x)
+}
+
+print(x)
+
+// 块内访问外层变量
+let outer = 5
+{
+    let inner = 10
+    let total = outer + inner
+    print(total)
+}
+

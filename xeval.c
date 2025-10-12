@@ -11,13 +11,62 @@
 #include <math.h>
 #include "xeval.h"
 
+/* 内部求值函数前向声明 */
+static XrValue xr_eval_internal(XrayState *X, AstNode *node, XSymbolTable *symbols);
+static XrValue xr_eval_literal(XrayState *X, AstNode *node);
+static XrValue xr_eval_binary(XrayState *X, AstNode *node, XSymbolTable *symbols);
+static XrValue xr_eval_unary(XrayState *X, AstNode *node, XSymbolTable *symbols);
+static XrValue xr_eval_grouping(XrayState *X, AstNode *node, XSymbolTable *symbols);
+static XrValue xr_eval_expr_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols);
+static XrValue xr_eval_print_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols);
+static XrValue xr_eval_program(XrayState *X, AstNode *node, XSymbolTable *symbols);
+static XrValue xr_eval_logical_and(XrayState *X, AstNode *left_node, AstNode *right_node, XSymbolTable *symbols);
+static XrValue xr_eval_logical_or(XrayState *X, AstNode *left_node, AstNode *right_node, XSymbolTable *symbols);
+
 /* ========== 主要求值函数 ========== */
 
 /*
-** 主求值函数 - AST 访问者模式的核心
-** 根据节点类型分发到相应的处理函数
+** 主求值函数 - 创建符号表并开始求值
 */
 XrValue xr_eval(XrayState *X, AstNode *node) {
+    /* 创建符号表 */
+    XSymbolTable *symbols = xsymboltable_new();
+    if (!symbols) {
+        xr_runtime_error(X, 0, "内存分配失败");
+        XrValue error_value;
+        xr_setnull(&error_value);
+        return error_value;
+    }
+    
+    /* 调用内部求值函数 */
+    XrValue result = xr_eval_internal(X, node, symbols);
+    
+    /* 释放符号表 */
+    xsymboltable_free(symbols);
+    
+    return result;
+}
+
+/*
+** 使用外部符号表的求值函数（用于 REPL）
+** 允许跨多次调用保持变量状态
+*/
+XrValue xr_eval_with_symbols(XrayState *X, AstNode *node, XSymbolTable *symbols) {
+    if (!symbols) {
+        xr_runtime_error(X, 0, "符号表为空");
+        XrValue error_value;
+        xr_setnull(&error_value);
+        return error_value;
+    }
+    
+    return xr_eval_internal(X, node, symbols);
+}
+
+/*
+** 内部求值函数 - AST 访问者模式的核心
+** 根据节点类型分发到相应的处理函数
+*/
+static XrValue xr_eval_internal(XrayState *X, AstNode *node, XSymbolTable *symbols) {
     if (node == NULL) {
         XrValue null_value;
         xr_setnull(&null_value);
@@ -48,26 +97,40 @@ XrValue xr_eval(XrayState *X, AstNode *node) {
         case AST_BINARY_GE:
         case AST_BINARY_AND:
         case AST_BINARY_OR:
-            return xr_eval_binary(X, node);
+            return xr_eval_binary(X, node, symbols);
         
         /* 一元运算节点 */
         case AST_UNARY_NEG:
         case AST_UNARY_NOT:
-            return xr_eval_unary(X, node);
+            return xr_eval_unary(X, node, symbols);
         
         /* 分组节点 */
         case AST_GROUPING:
-            return xr_eval_grouping(X, node);
+            return xr_eval_grouping(X, node, symbols);
         
         /* 语句节点 */
         case AST_EXPR_STMT:
-            return xr_eval_expr_stmt(X, node);
+            return xr_eval_expr_stmt(X, node, symbols);
         
         case AST_PRINT_STMT:
-            return xr_eval_print_stmt(X, node);
+            return xr_eval_print_stmt(X, node, symbols);
+        
+        case AST_BLOCK:
+            return xr_eval_block(X, node, symbols);
+        
+        /* 变量相关节点 */
+        case AST_VAR_DECL:
+        case AST_CONST_DECL:
+            return xr_eval_var_decl(X, node, symbols);
+        
+        case AST_VARIABLE:
+            return xr_eval_variable(X, node, symbols);
+        
+        case AST_ASSIGNMENT:
+            return xr_eval_assignment(X, node, symbols);
         
         case AST_PROGRAM:
-            return xr_eval_program(X, node);
+            return xr_eval_program(X, node, symbols);
         
         default:
             xr_runtime_error(X, node->line, "未知的 AST 节点类型: %d", node->type);
@@ -82,25 +145,26 @@ XrValue xr_eval(XrayState *X, AstNode *node) {
 /*
 ** 字面量求值 - 直接返回存储的值
 */
-XrValue xr_eval_literal(XrayState *X, AstNode *node) {
+static XrValue xr_eval_literal(XrayState *X, AstNode *node) {
+    (void)X;  /* 未使用，避免警告 */
     return node->as.literal.value;
 }
 
 /*
 ** 二元运算求值
 */
-XrValue xr_eval_binary(XrayState *X, AstNode *node) {
+static XrValue xr_eval_binary(XrayState *X, AstNode *node, XSymbolTable *symbols) {
     /* 逻辑运算需要短路求值，特殊处理 */
     if (node->type == AST_BINARY_AND) {
-        return xr_eval_logical_and(X, node->as.binary.left, node->as.binary.right);
+        return xr_eval_logical_and(X, node->as.binary.left, node->as.binary.right, symbols);
     }
     if (node->type == AST_BINARY_OR) {
-        return xr_eval_logical_or(X, node->as.binary.left, node->as.binary.right);
+        return xr_eval_logical_or(X, node->as.binary.left, node->as.binary.right, symbols);
     }
     
     /* 其他运算：先求值两个操作数 */
-    XrValue left = xr_eval(X, node->as.binary.left);
-    XrValue right = xr_eval(X, node->as.binary.right);
+    XrValue left = xr_eval_internal(X, node->as.binary.left, symbols);
+    XrValue right = xr_eval_internal(X, node->as.binary.right, symbols);
     
     /* 根据运算符类型执行计算 */
     switch (node->type) {
@@ -127,8 +191,8 @@ XrValue xr_eval_binary(XrayState *X, AstNode *node) {
 /*
 ** 一元运算求值
 */
-XrValue xr_eval_unary(XrayState *X, AstNode *node) {
-    XrValue operand = xr_eval(X, node->as.unary.operand);
+static XrValue xr_eval_unary(XrayState *X, AstNode *node, XSymbolTable *symbols) {
+    XrValue operand = xr_eval_internal(X, node->as.unary.operand, symbols);
     
     switch (node->type) {
         case AST_UNARY_NEG:
@@ -147,22 +211,22 @@ XrValue xr_eval_unary(XrayState *X, AstNode *node) {
 /*
 ** 分组表达式求值（括号）
 */
-XrValue xr_eval_grouping(XrayState *X, AstNode *node) {
-    return xr_eval(X, node->as.grouping);
+static XrValue xr_eval_grouping(XrayState *X, AstNode *node, XSymbolTable *symbols) {
+    return xr_eval_internal(X, node->as.grouping, symbols);
 }
 
 /*
 ** 表达式语句求值
 */
-XrValue xr_eval_expr_stmt(XrayState *X, AstNode *node) {
-    return xr_eval(X, node->as.expr_stmt);
+static XrValue xr_eval_expr_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols) {
+    return xr_eval_internal(X, node->as.expr_stmt, symbols);
 }
 
 /*
 ** print 语句求值
 */
-XrValue xr_eval_print_stmt(XrayState *X, AstNode *node) {
-    XrValue value = xr_eval(X, node->as.print_stmt.expr);
+static XrValue xr_eval_print_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols) {
+    XrValue value = xr_eval_internal(X, node->as.print_stmt.expr, symbols);
     
     /* 打印值 */
     const char *str = xr_value_to_string(X, value);
@@ -177,13 +241,13 @@ XrValue xr_eval_print_stmt(XrayState *X, AstNode *node) {
 /*
 ** 程序求值（执行多个语句）
 */
-XrValue xr_eval_program(XrayState *X, AstNode *node) {
+static XrValue xr_eval_program(XrayState *X, AstNode *node, XSymbolTable *symbols) {
     XrValue last_value;
     xr_setnull(&last_value);
     
     /* 执行所有语句，返回最后一个语句的值 */
     for (int i = 0; i < node->as.program.count; i++) {
-        last_value = xr_eval(X, node->as.program.statements[i]);
+        last_value = xr_eval_internal(X, node->as.program.statements[i], symbols);
     }
     
     return last_value;
@@ -440,8 +504,8 @@ XrValue xr_eval_greater_equal(XrayState *X, XrValue left, XrValue right) {
 /*
 ** 逻辑与（短路求值）
 */
-XrValue xr_eval_logical_and(XrayState *X, AstNode *left_node, AstNode *right_node) {
-    XrValue left = xr_eval(X, left_node);
+static XrValue xr_eval_logical_and(XrayState *X, AstNode *left_node, AstNode *right_node, XSymbolTable *symbols) {
+    XrValue left = xr_eval_internal(X, left_node, symbols);
     
     /* 如果左边为假，直接返回左边的值（短路） */
     if (!xr_is_truthy(left)) {
@@ -449,14 +513,14 @@ XrValue xr_eval_logical_and(XrayState *X, AstNode *left_node, AstNode *right_nod
     }
     
     /* 否则返回右边的值 */
-    return xr_eval(X, right_node);
+    return xr_eval_internal(X, right_node, symbols);
 }
 
 /*
 ** 逻辑或（短路求值）
 */
-XrValue xr_eval_logical_or(XrayState *X, AstNode *left_node, AstNode *right_node) {
-    XrValue left = xr_eval(X, left_node);
+static XrValue xr_eval_logical_or(XrayState *X, AstNode *left_node, AstNode *right_node, XSymbolTable *symbols) {
+    XrValue left = xr_eval_internal(X, left_node, symbols);
     
     /* 如果左边为真，直接返回左边的值（短路） */
     if (xr_is_truthy(left)) {
@@ -464,7 +528,7 @@ XrValue xr_eval_logical_or(XrayState *X, AstNode *left_node, AstNode *right_node
     }
     
     /* 否则返回右边的值 */
-    return xr_eval(X, right_node);
+    return xr_eval_internal(X, right_node, symbols);
 }
 
 /*
@@ -599,4 +663,95 @@ void xr_runtime_error(XrayState *X, int line, const char *format, ...) {
     va_end(args);
     
     fprintf(stderr, "\n");
+}
+
+/* ========== 变量相关求值函数 ========== */
+
+/*
+** 变量声明求值：let x = 10 或 const PI = 3.14
+*/
+XrValue xr_eval_var_decl(XrayState *X, AstNode *node, XSymbolTable *symbols) {
+    const char *name = node->as.var_decl.name;
+    bool is_const = node->as.var_decl.is_const;
+    
+    /* 计算初始化表达式 */
+    XrValue init_value;
+    if (node->as.var_decl.initializer != NULL) {
+        init_value = xr_eval_internal(X, node->as.var_decl.initializer, symbols);
+    } else {
+        /* 无初始化表达式，设为 null */
+        xr_setnull(&init_value);
+    }
+    
+    /* 在当前作用域定义变量 */
+    if (!xsymboltable_define(symbols, name, init_value, is_const)) {
+        xr_runtime_error(X, node->line, "变量 '%s' 已定义", name);
+    }
+    
+    /* 返回 null */
+    XrValue null_value;
+    xr_setnull(&null_value);
+    return null_value;
+}
+
+/*
+** 变量引用求值：x
+*/
+XrValue xr_eval_variable(XrayState *X, AstNode *node, XSymbolTable *symbols) {
+    const char *name = node->as.variable.name;
+    
+    /* 查找变量 */
+    XrValue value;
+    if (!xsymboltable_get(symbols, name, &value)) {
+        xr_runtime_error(X, node->line, "未定义的变量 '%s'", name);
+        xr_setnull(&value);
+    }
+    
+    return value;
+}
+
+/*
+** 赋值求值：x = 10
+*/
+XrValue xr_eval_assignment(XrayState *X, AstNode *node, XSymbolTable *symbols) {
+    const char *name = node->as.assignment.name;
+    
+    /* 计算赋值表达式 */
+    XrValue value = xr_eval_internal(X, node->as.assignment.value, symbols);
+    
+    /* 赋值 */
+    if (!xsymboltable_assign(symbols, name, value)) {
+        /* 检查是否是常量还是未定义 */
+        XVariable *var = xsymboltable_resolve(symbols, name);
+        if (var == NULL) {
+            xr_runtime_error(X, node->line, "未定义的变量 '%s'", name);
+        } else if (var->is_const) {
+            xr_runtime_error(X, node->line, "不能修改常量 '%s'", name);
+        }
+        xr_setnull(&value);
+    }
+    
+    /* 赋值表达式返回赋的值 */
+    return value;
+}
+
+/*
+** 代码块求值：{ ... }
+*/
+XrValue xr_eval_block(XrayState *X, AstNode *node, XSymbolTable *symbols) {
+    /* 进入新作用域 */
+    xsymboltable_begin_scope(symbols);
+    
+    XrValue last_value;
+    xr_setnull(&last_value);
+    
+    /* 执行代码块中的所有语句 */
+    for (int i = 0; i < node->as.block.count; i++) {
+        last_value = xr_eval_internal(X, node->as.block.statements[i], symbols);
+    }
+    
+    /* 退出作用域 */
+    xsymboltable_end_scope(symbols);
+    
+    return last_value;
 }

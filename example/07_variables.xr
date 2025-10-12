@@ -1,0 +1,19 @@
+// 07_variables.xr - 变量基础测试
+
+// 变量声明和初始化
+let x = 10
+print(x)
+
+// 变量赋值
+x = 20
+print(x)
+
+// 变量参与表达式
+let y = 30
+let sum = x + y
+print(sum)
+
+// 常量
+const MAX = 100
+print(MAX)
+

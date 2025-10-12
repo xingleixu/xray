@@ -1,0 +1,28 @@
+// 09_constants.xr - 常量测试
+
+// 常量声明
+const PI = 3.14159
+const MAX_SIZE = 100
+const GREETING = "Hello, Xray"
+
+print(PI)
+print(MAX_SIZE)
+print(GREETING)
+
+// 常量在表达式中使用
+const RADIUS = 5
+let area = PI * RADIUS * RADIUS
+print(area)
+
+// 块内常量
+{
+    const LOCAL_CONST = 42
+    print(LOCAL_CONST)
+}
+
+// 常量和变量混合
+let multiplier = 2
+const BASE = 10
+let result = BASE * multiplier
+print(result)
+

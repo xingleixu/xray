@@ -10,6 +10,7 @@
 #include "xray.h"
 #include "xparse.h"
 #include "xeval.h"
+#include "xscope.h"
 
 /* 打印版本信息 */
 static void print_version(void) {
@@ -94,6 +95,13 @@ static int repl(XrayState *X) {
     printf("%s REPL\n", XRAY_VERSION);
     printf("输入表达式进行计算，输入 'exit' 退出\n");
     
+    /* 创建持久的符号表，在 REPL 会话期间保持变量 */
+    XSymbolTable *symbols = xsymboltable_new();
+    if (!symbols) {
+        fprintf(stderr, "无法创建符号表\n");
+        return 1;
+    }
+    
     for (;;) {
         printf("xray> ");
         
@@ -125,17 +133,21 @@ static int repl(XrayState *X) {
             if (ast->as.program.count > 0) {
                 AstNode *stmt = ast->as.program.statements[0];
                 if (stmt->type == AST_EXPR_STMT) {
-                    XrValue result = xr_eval(X, ast);
+                    /* 使用持久符号表求值 */
+                    XrValue result = xr_eval_with_symbols(X, ast, symbols);
                     const char *result_str = xr_value_to_string(X, result);
                     printf("=> %s\n", result_str);
                 } else {
-                    /* 其他语句（如 print），直接执行 */
-                    xr_eval(X, ast);
+                    /* 其他语句（如 print、变量声明），直接执行 */
+                    xr_eval_with_symbols(X, ast, symbols);
                 }
             }
             xr_ast_free(X, ast);
         }
     }
+    
+    /* 释放符号表 */
+    xsymboltable_free(symbols);
     
     return 0;
 }

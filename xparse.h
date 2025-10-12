@@ -17,6 +17,7 @@
 */
 typedef enum {
     PREC_NONE,
+    PREC_ASSIGNMENT,  /* = */
     PREC_OR,          /* || */
     PREC_AND,         /* && */
     PREC_EQUALITY,    /* == != */
@@ -97,9 +98,18 @@ AstNode *xr_parse_precedence(Parser *parser, Precedence precedence);
 /*
 ** 语句解析函数
 */
+AstNode *xr_parse_declaration(Parser *parser);
 AstNode *xr_parse_statement(Parser *parser);
 AstNode *xr_parse_expr_statement(Parser *parser);
 AstNode *xr_parse_print_statement(Parser *parser);
+AstNode *xr_parse_block(Parser *parser);
+
+/*
+** 变量相关解析函数
+*/
+AstNode *xr_parse_var_declaration(Parser *parser, int is_const);
+AstNode *xr_parse_variable(Parser *parser);
+AstNode *xr_parse_assignment(Parser *parser, AstNode *left);
 
 /*
 ** 获取 Token 的解析规则
