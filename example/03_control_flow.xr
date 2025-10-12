@@ -1,0 +1,25 @@
+// 03_control_flow.xr
+// 控制流语句示例
+
+// if-else 条件判断
+let x = 10
+
+if (x > 5) {
+    let message = "x 大于 5"
+} else if (x == 5) {
+    let message = "x 等于 5"
+} else {
+    let message = "x 小于 5"
+}
+
+// while 循环
+let i = 0
+while (i < 10) {
+    i = i + 1
+}
+
+// for 循环
+for (let j = 0; j < 10; j = j + 1) {
+    let value = j * 2
+}
+

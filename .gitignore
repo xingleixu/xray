@@ -1,0 +1,44 @@
+# Xray 项目 .gitignore
+
+# 编译生成的文件
+*.o
+*.a
+*.so
+*.dylib
+
+# 可执行文件
+xray
+test/test_lexer
+test/test_for_loop
+test/test_ast
+test/test_parser
+
+# 系统文件
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE 文件
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 调试文件
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# 备份文件
+*.bak
+*.tmp
+*~
+
+# 日志文件
+*.log

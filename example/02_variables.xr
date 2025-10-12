@@ -1,0 +1,23 @@
+// 02_variables.xr
+// 变量定义和使用示例
+
+// 使用 let 定义变量
+let x = 10
+let name = "Xray"
+let pi = 3.14159
+
+// 使用 const 定义常量
+const MAX_SIZE = 100
+const VERSION = "0.1.0"
+
+// 块级作用域
+{
+    let inner = 42
+}
+
+// 变量运算
+let a = 5
+let b = 10
+let sum = a + b
+let product = a * b
+

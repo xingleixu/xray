@@ -1,0 +1,14 @@
+// 01_hello.xr
+// Xray 语言第一个示例程序
+
+// 这是一个简单的 Hello World 程序
+// 目前只是语法演示，还不能真正运行
+
+let message = "Hello, Xray!"
+let x = 10
+let y = 20
+
+if (x < y) {
+    let sum = x + y
+}
+
