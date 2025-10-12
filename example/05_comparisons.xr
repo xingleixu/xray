@@ -1,0 +1,19 @@
+// 05_comparisons.xr - Xray 比较运算示例
+
+// 比较运算
+print(5 > 3)           // true
+print(5 < 3)           // false
+print(5 >= 5)          // true
+print(5 <= 4)          // false
+print(5 == 5)          // true
+print(5 != 3)          // true
+
+// 不同类型的比较
+print(5 == 5)          // true (整数)
+print(5 == 5.0)        // true (整数与浮点数)
+print(3.14 == 3.14)    // true (浮点数)
+
+// 布尔值比较
+print(true == true)    // true
+print(true != false)   // true
+print(false == false)  // true

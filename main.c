@@ -8,6 +8,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include "xray.h"
+#include "xparse.h"
+#include "xeval.h"
 
 /* 打印版本信息 */
 static void print_version(void) {
@@ -22,19 +24,81 @@ static void print_usage(const char *prog) {
     printf("  -v          显示版本信息\n");
     printf("  -h          显示此帮助信息\n");
     printf("  -e <代码>   执行字符串代码\n");
+    printf("  --dump-ast  打印 AST 结构（调试用）\n");
+}
+
+/*
+** 读取文件内容
+*/
+static char *read_file(const char *path) {
+    FILE *file = fopen(path, "rb");
+    if (file == NULL) return NULL;
+    
+    /* 获取文件大小 */
+    fseek(file, 0L, SEEK_END);
+    size_t file_size = ftell(file);
+    rewind(file);
+    
+    /* 分配缓冲区 */
+    char *buffer = (char *)malloc(file_size + 1);
+    if (buffer == NULL) {
+        fclose(file);
+        return NULL;
+    }
+    
+    /* 读取文件 */
+    size_t bytes_read = fread(buffer, sizeof(char), file_size, file);
+    if (bytes_read < file_size) {
+        fprintf(stderr, "无法读取文件\n");
+        free(buffer);
+        fclose(file);
+        return NULL;
+    }
+    
+    buffer[bytes_read] = '\0';
+    fclose(file);
+    return buffer;
+}
+
+/*
+** 执行 Xray 代码
+*/
+static int run(XrayState *X, const char *source, int dump_ast) {
+    /* 1. 解析源代码为 AST */
+    AstNode *ast = xr_parse(X, source);
+    if (ast == NULL) {
+        fprintf(stderr, "解析失败\n");
+        return 1;
+    }
+    
+    /* 2. 如果需要，打印 AST 结构 */
+    if (dump_ast) {
+        printf("=== AST 结构 ===\n");
+        xr_ast_print(ast, 0);
+        printf("=== 结束 ===\n\n");
+    }
+    
+    /* 3. 执行 AST */
+    XrValue result = xr_eval(X, ast);
+    
+    /* 4. 释放 AST */
+    xr_ast_free(X, ast);
+    
+    return 0;
 }
 
 /* REPL (Read-Eval-Print Loop) */
 static int repl(XrayState *X) {
     char line[1024];
     
-    printf("%s\n", XRAY_VERSION);
-    printf("输入 'exit' 退出\n");
+    printf("%s REPL\n", XRAY_VERSION);
+    printf("输入表达式进行计算，输入 'exit' 退出\n");
     
     for (;;) {
         printf("xray> ");
         
         if (fgets(line, sizeof(line), stdin) == NULL) {
+            printf("\n");
             break;
         }
         
@@ -44,13 +108,33 @@ static int repl(XrayState *X) {
             line[len - 1] = '\0';
         }
         
+        /* 跳过空行 */
+        if (strlen(line) == 0) {
+            continue;
+        }
+        
         /* 检查退出命令 */
         if (strcmp(line, "exit") == 0) {
             break;
         }
         
-        /* 执行代码 */
-        xray_dostring(X, line);
+        /* 解析并执行代码 */
+        AstNode *ast = xr_parse(X, line);
+        if (ast != NULL) {
+            /* 如果是表达式语句，显示结果 */
+            if (ast->as.program.count > 0) {
+                AstNode *stmt = ast->as.program.statements[0];
+                if (stmt->type == AST_EXPR_STMT) {
+                    XrValue result = xr_eval(X, ast);
+                    const char *result_str = xr_value_to_string(X, result);
+                    printf("=> %s\n", result_str);
+                } else {
+                    /* 其他语句（如 print），直接执行 */
+                    xr_eval(X, ast);
+                }
+            }
+            xr_ast_free(X, ast);
+        }
     }
     
     return 0;
@@ -86,9 +170,33 @@ int main(int argc, char *argv[]) {
                         break;
                     case 'e':
                         if (i + 1 < argc) {
-                            status = xray_dostring(X, argv[++i]);
+                            status = run(X, argv[++i], 0);
                         } else {
                             fprintf(stderr, "错误: -e 需要一个参数\n");
+                            status = 1;
+                        }
+                        break;
+                    case '-':
+                        /* 长选项 */
+                        if (strcmp(argv[i], "--dump-ast") == 0) {
+                            if (i + 1 < argc) {
+                                /* 下一个参数应该是文件名 */
+                                i++;
+                                char *source = read_file(argv[i]);
+                                if (source != NULL) {
+                                    status = run(X, source, 1);  /* 打印 AST */
+                                    free(source);
+                                } else {
+                                    fprintf(stderr, "无法读取文件: %s\n", argv[i]);
+                                    status = 1;
+                                }
+                            } else {
+                                fprintf(stderr, "错误: --dump-ast 需要一个文件名\n");
+                                status = 1;
+                            }
+                        } else {
+                            fprintf(stderr, "未知选项: %s\n", argv[i]);
+                            print_usage(argv[0]);
                             status = 1;
                         }
                         break;
@@ -100,7 +208,14 @@ int main(int argc, char *argv[]) {
                 }
             } else {
                 /* 文件名 */
-                status = xray_dofile(X, argv[i]);
+                char *source = read_file(argv[i]);
+                if (source != NULL) {
+                    status = run(X, source, 0);
+                    free(source);
+                } else {
+                    fprintf(stderr, "无法读取文件: %s\n", argv[i]);
+                    status = 1;
+                }
                 break;
             }
         }

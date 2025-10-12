@@ -11,13 +11,17 @@ TARGET = xray
 TEST_TARGET = test/test_lexer
 TEST_FOR_TARGET = test/test_for_loop
 TEST_AST_TARGET = test/test_ast
+TEST_PARSER_TARGET = test/test_parser
+TEST_EVAL_TARGET = test/test_eval
 
 # 源文件
-CORE_SRCS = xvalue.c xlex.c xstate.c xast.c
+CORE_SRCS = xvalue.c xlex.c xstate.c xast.c xparse.c xeval.c
 MAIN_SRC = main.c
 TEST_SRC = test/test_lexer.c
 TEST_FOR_SRC = test/test_for_loop.c
 TEST_AST_SRC = test/test_ast.c
+TEST_PARSER_SRC = test/test_parser.c
+TEST_EVAL_SRC = test/test_eval.c
 
 # 对象文件
 CORE_OBJS = $(CORE_SRCS:.c=.o)
@@ -25,6 +29,8 @@ MAIN_OBJ = $(MAIN_SRC:.c=.o)
 TEST_OBJ = $(TEST_SRC:.c=.o)
 TEST_FOR_OBJ = $(TEST_FOR_SRC:.c=.o)
 TEST_AST_OBJ = $(TEST_AST_SRC:.c=.o)
+TEST_PARSER_OBJ = $(TEST_PARSER_SRC:.c=.o)
+TEST_EVAL_OBJ = $(TEST_EVAL_SRC:.c=.o)
 
 # 默认目标
 all: $(TARGET)
@@ -35,7 +41,7 @@ $(TARGET): $(CORE_OBJS) $(MAIN_OBJ)
 	@echo "编译完成: $(TARGET)"
 
 # 编译测试程序
-test: $(TEST_TARGET) $(TEST_FOR_TARGET) $(TEST_AST_TARGET)
+test: $(TEST_TARGET) $(TEST_FOR_TARGET) $(TEST_AST_TARGET) $(TEST_PARSER_TARGET) $(TEST_EVAL_TARGET)
 	@echo "运行词法分析器测试..."
 	./$(TEST_TARGET)
 	@echo ""
@@ -44,6 +50,12 @@ test: $(TEST_TARGET) $(TEST_FOR_TARGET) $(TEST_AST_TARGET)
 	@echo ""
 	@echo "运行 AST 测试..."
 	./$(TEST_AST_TARGET)
+	@echo ""
+	@echo "运行语法解析器测试..."
+	./$(TEST_PARSER_TARGET)
+	@echo ""
+	@echo "运行表达式求值器测试..."
+	./$(TEST_EVAL_TARGET)
 
 $(TEST_TARGET): $(CORE_OBJS) $(TEST_OBJ)
 	$(CC) $(LDFLAGS) -o $@ $^
@@ -57,13 +69,21 @@ $(TEST_AST_TARGET): $(CORE_OBJS) $(TEST_AST_OBJ)
 	$(CC) $(LDFLAGS) -o $@ $^
 	@echo "编译完成: $(TEST_AST_TARGET)"
 
+$(TEST_PARSER_TARGET): $(CORE_OBJS) $(TEST_PARSER_OBJ)
+	$(CC) $(LDFLAGS) -o $@ $^
+	@echo "编译完成: $(TEST_PARSER_TARGET)"
+
+$(TEST_EVAL_TARGET): $(CORE_OBJS) $(TEST_EVAL_OBJ)
+	$(CC) $(LDFLAGS) -o $@ $^
+	@echo "编译完成: $(TEST_EVAL_TARGET)"
+
 # 编译规则
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 # 清理
 clean:
-	rm -f $(CORE_OBJS) $(MAIN_OBJ) $(TEST_OBJ) $(TEST_FOR_OBJ) $(TEST_AST_OBJ) $(TARGET) $(TEST_TARGET) $(TEST_FOR_TARGET) $(TEST_AST_TARGET)
+	rm -f $(CORE_OBJS) $(MAIN_OBJ) $(TEST_OBJ) $(TEST_FOR_OBJ) $(TEST_AST_OBJ) $(TEST_PARSER_OBJ) $(TEST_EVAL_OBJ) $(TARGET) $(TEST_TARGET) $(TEST_FOR_TARGET) $(TEST_AST_TARGET) $(TEST_PARSER_TARGET) $(TEST_EVAL_TARGET)
 	@echo "清理完成"
 
 # 重新编译

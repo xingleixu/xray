@@ -12,9 +12,9 @@
 
 /* 版本信息 */
 #define XRAY_VERSION_MAJOR  0
-#define XRAY_VERSION_MINOR  1
+#define XRAY_VERSION_MINOR  2
 #define XRAY_VERSION_PATCH  0
-#define XRAY_VERSION        "Xray 0.1.0"
+#define XRAY_VERSION        "Xray 0.2.0"
 #define XRAY_COPYRIGHT      "Copyright (C) 2025"
 #define XRAY_AUTHORS        "Xray Team"
 

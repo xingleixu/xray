@@ -1,0 +1,26 @@
+// 06_logic.xr - Xray 逻辑运算示例
+
+// 逻辑运算
+print(true && true)    // true
+print(true && false)   // false
+print(false && true)   // false
+print(false && false)  // false
+
+print(true || true)    // true
+print(true || false)   // true
+print(false || true)   // true
+print(false || false)  // false
+
+// 逻辑非
+print(!true)           // false
+print(!false)          // true
+print(!null)           // true (null 被视为假)
+
+// 复杂逻辑表达式
+print((5 > 3) && (10 < 20))  // true
+print((5 > 3) || (10 > 20))  // true
+print(!(5 > 3))              // false
+
+// 短路求值（不会执行除零）
+print(false && (1 / 0))      // false
+print(true || (1 / 0))       // true
