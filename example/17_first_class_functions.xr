@@ -1,0 +1,67 @@
+// 17_first_class_functions.xr - 函数作为一等公民
+
+// 测试1：函数作为参数
+function apply(f, x, y) {
+    return f(x, y)
+}
+
+function add(a, b) {
+    return a + b
+}
+
+function multiply(a, b) {
+    return a * b
+}
+
+print("Apply add(3, 4):")
+print(apply(add, 3, 4))
+
+print("Apply multiply(3, 4):")
+print(apply(multiply, 3, 4))
+
+// 测试2：函数作为返回值
+function makeAdder(x) {
+    function inner(y) {
+        return x + y
+    }
+    return inner
+}
+
+let addFive = makeAdder(5)
+print("Add 5 to 3:")
+print(addFive(3))
+print("Add 5 to 10:")
+print(addFive(10))
+
+// 测试3：嵌套函数调用
+function outer(a) {
+    function middle(b) {
+        function inner(c) {
+            return a + b + c
+        }
+        return inner
+    }
+    return middle
+}
+
+let func = outer(10)
+let func2 = func(20)
+print("Nested: 10 + 20 + 30 =")
+print(func2(30))
+
+// 测试4：递归闭包
+function makeCounter() {
+    let count = 0
+    function increment() {
+        count = count + 1
+        return count
+    }
+    return increment
+}
+
+let counter = makeCounter()
+print("Counter:")
+print(counter())
+print(counter())
+print(counter())
+

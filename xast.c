@@ -345,6 +345,75 @@ AstNode *xr_ast_continue_stmt(XrayState *X, int line) {
     return node;
 }
 
+/* ========== 函数相关节点创建 ========== */
+
+/*
+** 创建函数声明节点
+** name: 函数名
+** parameters: 参数列表（字符串数组）
+** param_count: 参数数量
+** body: 函数体（必须是 block 节点）
+*/
+AstNode *xr_ast_function_decl(XrayState *X, const char *name,
+                              char **parameters, int param_count,
+                              AstNode *body, int line) {
+    AstNode *node = alloc_node(X, AST_FUNCTION_DECL, line);
+    
+    /* 复制函数名 */
+    node->as.function_decl.name = (char *)malloc(strlen(name) + 1);
+    strcpy(node->as.function_decl.name, name);
+    
+    /* 复制参数列表 */
+    node->as.function_decl.param_count = param_count;
+    if (param_count > 0) {
+        node->as.function_decl.parameters = (char **)malloc(sizeof(char *) * param_count);
+        for (int i = 0; i < param_count; i++) {
+            node->as.function_decl.parameters[i] = (char *)malloc(strlen(parameters[i]) + 1);
+            strcpy(node->as.function_decl.parameters[i], parameters[i]);
+        }
+    } else {
+        node->as.function_decl.parameters = NULL;
+    }
+    
+    node->as.function_decl.body = body;
+    return node;
+}
+
+/*
+** 创建函数调用节点
+** callee: 被调用的表达式（通常是变量）
+** arguments: 参数列表（表达式数组）
+** arg_count: 参数数量
+*/
+AstNode *xr_ast_call_expr(XrayState *X, AstNode *callee,
+                          AstNode **arguments, int arg_count, int line) {
+    AstNode *node = alloc_node(X, AST_CALL_EXPR, line);
+    node->as.call_expr.callee = callee;
+    node->as.call_expr.arg_count = arg_count;
+    
+    /* 复制参数列表 */
+    if (arg_count > 0) {
+        node->as.call_expr.arguments = (AstNode **)malloc(sizeof(AstNode *) * arg_count);
+        for (int i = 0; i < arg_count; i++) {
+            node->as.call_expr.arguments[i] = arguments[i];
+        }
+    } else {
+        node->as.call_expr.arguments = NULL;
+    }
+    
+    return node;
+}
+
+/*
+** 创建 return 语句节点
+** value: 返回值表达式（可选，NULL 表示 return 无值）
+*/
+AstNode *xr_ast_return_stmt(XrayState *X, AstNode *value, int line) {
+    AstNode *node = alloc_node(X, AST_RETURN_STMT, line);
+    node->as.return_stmt.value = value;
+    return node;
+}
+
 /* ========== AST 释放 ========== */
 
 /*
@@ -464,6 +533,46 @@ void xr_ast_free(XrayState *X, AstNode *node) {
             /* 无需释放额外数据 */
             break;
         
+        /* 函数相关节点 */
+        case AST_FUNCTION_DECL:
+            /* 释放函数名 */
+            if (node->as.function_decl.name != NULL) {
+                free(node->as.function_decl.name);
+            }
+            /* 释放参数列表 */
+            if (node->as.function_decl.parameters != NULL) {
+                for (int i = 0; i < node->as.function_decl.param_count; i++) {
+                    free(node->as.function_decl.parameters[i]);
+                }
+                free(node->as.function_decl.parameters);
+            }
+            /* 释放函数体 */
+            if (node->as.function_decl.body != NULL) {
+                xr_ast_free(X, node->as.function_decl.body);
+            }
+            break;
+        
+        case AST_CALL_EXPR:
+            /* 释放被调用者 */
+            if (node->as.call_expr.callee != NULL) {
+                xr_ast_free(X, node->as.call_expr.callee);
+            }
+            /* 释放参数列表 */
+            if (node->as.call_expr.arguments != NULL) {
+                for (int i = 0; i < node->as.call_expr.arg_count; i++) {
+                    xr_ast_free(X, node->as.call_expr.arguments[i]);
+                }
+                free(node->as.call_expr.arguments);
+            }
+            break;
+        
+        case AST_RETURN_STMT:
+            /* 释放返回值表达式 */
+            if (node->as.return_stmt.value != NULL) {
+                xr_ast_free(X, node->as.return_stmt.value);
+            }
+            break;
+        
         /* 程序节点 */
         case AST_PROGRAM:
             for (int i = 0; i < node->as.program.count; i++) {
@@ -521,6 +630,9 @@ const char *xr_ast_typename(AstNodeType type) {
         case AST_FOR_STMT:          return "ForStmt";
         case AST_BREAK_STMT:        return "BreakStmt";
         case AST_CONTINUE_STMT:     return "ContinueStmt";
+        case AST_FUNCTION_DECL:     return "FunctionDecl";
+        case AST_CALL_EXPR:         return "CallExpr";
+        case AST_RETURN_STMT:       return "ReturnStmt";
         case AST_PROGRAM:           return "Program";
         default:                    return "Unknown";
     }
@@ -667,6 +779,40 @@ void xr_ast_print(AstNode *node, int indent) {
         case AST_BREAK_STMT:
         case AST_CONTINUE_STMT:
             /* 无需打印额外信息 */
+            break;
+        
+        /* 函数相关节点 */
+        case AST_FUNCTION_DECL:
+            printf(" (name: %s, params: ", node->as.function_decl.name);
+            for (int i = 0; i < node->as.function_decl.param_count; i++) {
+                printf("%s", node->as.function_decl.parameters[i]);
+                if (i < node->as.function_decl.param_count - 1) {
+                    printf(", ");
+                }
+            }
+            printf(")\n");
+            if (node->as.function_decl.body != NULL) {
+                xr_ast_print(node->as.function_decl.body, indent + 1);
+            }
+            break;
+        
+        case AST_CALL_EXPR:
+            printf("\n");
+            /* 打印被调用者 */
+            if (node->as.call_expr.callee != NULL) {
+                xr_ast_print(node->as.call_expr.callee, indent + 1);
+            }
+            /* 打印参数 */
+            for (int i = 0; i < node->as.call_expr.arg_count; i++) {
+                xr_ast_print(node->as.call_expr.arguments[i], indent + 1);
+            }
+            break;
+        
+        case AST_RETURN_STMT:
+            printf("\n");
+            if (node->as.return_stmt.value != NULL) {
+                xr_ast_print(node->as.return_stmt.value, indent + 1);
+            }
             break;
         
         case AST_PROGRAM:

@@ -1,0 +1,41 @@
+// 15_functions.xr - 基础函数测试
+
+// 简单函数
+function greet(name) {
+    print("Hello, " + name + "!")
+}
+
+greet("Xray")
+greet("World")
+
+// 带返回值的函数
+function add(a, b) {
+    return a + b
+}
+
+let result = add(10, 20)
+print("10 + 20 = " + result)
+
+// 多个参数
+function calculate(a, b, c, d) {
+    return (a + b) * (c - d)
+}
+
+print("(5 + 3) * (10 - 2) = " + calculate(5, 3, 10, 2))
+
+// 无参数函数
+function getCurrentYear() {
+    return 2025
+}
+
+print("Current year: " + getCurrentYear())
+
+// 无返回值函数（返回null）
+function testNoReturn() {
+    let x = 10
+    let y = 20
+}
+
+let nullResult = testNoReturn()
+print("No return result: " + nullResult)
+

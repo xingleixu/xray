@@ -8,15 +8,59 @@
 #define xstate_h
 
 #include "xray.h"
+#include "xvalue.h"
+#include "xscope.h"  /* XSymbolTable 在 xscope.h 中定义 */
+
+/*
+** 调用帧
+** 存储单次函数调用的上下文信息
+*/
+typedef struct CallFrame {
+    XrFunction *function;              /* 当前执行的函数 */
+    XSymbolTable *local_symbols;       /* 局部变量符号表 */
+    struct CallFrame *prev;            /* 上一帧（形成栈） */
+    int line;                          /* 当前行号（用于错误报告） */
+} CallFrame;
+
+/*
+** 调用栈
+** 管理函数调用的栈结构
+*/
+typedef struct {
+    CallFrame *top;                    /* 栈顶帧 */
+    int depth;                         /* 当前深度 */
+    int max_depth;                     /* 最大深度限制 */
+} CallStack;
 
 /*
 ** Xray 状态结构
 ** 包含虚拟机运行所需的所有状态信息
 */
 struct XrayState {
-    /* 暂时只包含基本字段，后续会扩展 */
-    void *userdata;     /* 用户数据指针 */
+    void *userdata;                    /* 用户数据指针 */
+    CallStack *call_stack;             /* 调用栈 */
 };
+
+/* ========== 调用栈操作函数 ========== */
+
+/* 创建新的调用栈 */
+CallStack *xr_callstack_new(int max_depth);
+
+/* 释放调用栈 */
+void xr_callstack_free(CallStack *stack);
+
+/* 压入新的调用帧 */
+int xr_callstack_push(CallStack *stack, XrFunction *func, 
+                      XSymbolTable *symbols, int line);
+
+/* 弹出调用帧 */
+void xr_callstack_pop(CallStack *stack);
+
+/* 获取栈顶帧 */
+CallFrame *xr_callstack_top(CallStack *stack);
+
+/* 获取当前调用深度 */
+int xr_callstack_depth(CallStack *stack);
 
 #endif /* xstate_h */
 

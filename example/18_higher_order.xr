@@ -1,0 +1,73 @@
+// 18_higher_order.xr - 高阶函数（不使用闭包）
+
+// 测试1：函数作为参数
+function apply(f, x, y) {
+    return f(x, y)
+}
+
+function add(a, b) {
+    return a + b
+}
+
+function subtract(a, b) {
+    return a - b
+}
+
+function multiply(a, b) {
+    return a * b
+}
+
+function divide(a, b) {
+    return a / b
+}
+
+print("Apply tests:")
+print(apply(add, 10, 5))
+print(apply(subtract, 10, 5))
+print(apply(multiply, 10, 5))
+print(apply(divide, 10, 5))
+
+// 测试2：组合函数
+function compose(f, g, x) {
+    return f(g(x, x), x)
+}
+
+function double(a, b) {
+    return a + b
+}
+
+function triple(a, b) {
+    return a + a + b
+}
+
+print("Compose:")
+print(compose(triple, double, 5))
+
+// 测试3：条件函数选择
+function selectOp(isAdd, a, b) {
+    if (isAdd) {
+        return add(a, b)
+    } else {
+        return multiply(a, b)
+    }
+}
+
+print("Conditional function:")
+print(selectOp(true, 10, 5))
+print(selectOp(false, 10, 5))
+
+// 测试4：递归高阶函数
+function repeat(f, x, n) {
+    if (n <= 0) {
+        return x
+    }
+    return f(repeat(f, x, n - 1), 1)
+}
+
+function increment(a, b) {
+    return a + b
+}
+
+print("Repeat add 5 times:")
+print(repeat(increment, 0, 5))
+

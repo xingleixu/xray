@@ -71,6 +71,11 @@ typedef enum {
     AST_BREAK_STMT,         /* break 语句 */
     AST_CONTINUE_STMT,      /* continue 语句 */
     
+    /* 函数相关节点 */
+    AST_FUNCTION_DECL,      /* 函数声明：function add(a, b) {...} */
+    AST_CALL_EXPR,          /* 函数调用：add(1, 2) */
+    AST_RETURN_STMT,        /* return 语句：return expr */
+    
     /* 程序节点 */
     AST_PROGRAM             /* 程序根节点 */
 } AstNodeType;
@@ -202,6 +207,35 @@ typedef struct {
 } ContinueStmtNode;
 
 /*
+** 函数声明节点
+** function add(a, b) { return a + b }
+*/
+typedef struct {
+    char *name;             /* 函数名 */
+    char **parameters;      /* 参数列表 */
+    int param_count;        /* 参数数量 */
+    AstNode *body;          /* 函数体（必须是 block） */
+} FunctionDeclNode;
+
+/*
+** 函数调用节点
+** add(1, 2)
+*/
+typedef struct {
+    AstNode *callee;        /* 被调用的表达式（通常是变量） */
+    AstNode **arguments;    /* 参数列表 */
+    int arg_count;          /* 参数数量 */
+} CallExprNode;
+
+/*
+** return 语句节点
+** return expr 或 return
+*/
+typedef struct {
+    AstNode *value;         /* 返回值表达式（可选） */
+} ReturnStmtNode;
+
+/*
 ** AST 节点通用结构
 ** 所有节点类型的基础
 */
@@ -226,6 +260,9 @@ struct AstNode {
         ForStmtNode for_stmt;       /* for 循环 */
         BreakStmtNode break_stmt;   /* break 语句 */
         ContinueStmtNode continue_stmt; /* continue 语句 */
+        FunctionDeclNode function_decl; /* 函数声明 */
+        CallExprNode call_expr;     /* 函数调用 */
+        ReturnStmtNode return_stmt; /* return 语句 */
         ProgramNode program;        /* 程序 */
     } as;
 };
@@ -297,6 +334,18 @@ AstNode *xr_ast_break_stmt(XrayState *X, int line);
 
 /* 创建 continue 语句节点 */
 AstNode *xr_ast_continue_stmt(XrayState *X, int line);
+
+/* 创建函数声明节点 */
+AstNode *xr_ast_function_decl(XrayState *X, const char *name, 
+                              char **parameters, int param_count,
+                              AstNode *body, int line);
+
+/* 创建函数调用节点 */
+AstNode *xr_ast_call_expr(XrayState *X, AstNode *callee, 
+                          AstNode **arguments, int arg_count, int line);
+
+/* 创建 return 语句节点 */
+AstNode *xr_ast_return_stmt(XrayState *X, AstNode *value, int line);
 
 /* 释放 AST 节点 */
 void xr_ast_free(XrayState *X, AstNode *node);

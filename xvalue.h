@@ -9,9 +9,13 @@
 
 #include "xray.h"
 
+/* 前向声明 */
+typedef struct AstNode AstNode;
+typedef struct XScope XScope;
+
 /* 
 ** 类型标签
-** Xray 支持的基本类型：null、bool、int、float、string、array、set、map、class
+** Xray 支持的基本类型：null、bool、int、float、string、function、array、set、map、class
 */
 typedef enum {
     XR_TNULL,       /* null 类型 */
@@ -19,11 +23,24 @@ typedef enum {
     XR_TINT,        /* 整数类型 */
     XR_TFLOAT,      /* 浮点数类型 */
     XR_TSTRING,     /* 字符串类型 */
+    XR_TFUNCTION,   /* 函数类型 */
     XR_TARRAY,      /* 数组类型 */
     XR_TSET,        /* 集合类型 */
     XR_TMAP,        /* 映射类型 */
     XR_TCLASS       /* 类类型 */
 } XrType;
+
+/*
+** 函数对象
+** 存储函数的名称、参数和函数体
+*/
+typedef struct {
+    char *name;              /* 函数名 */
+    char **parameters;       /* 参数列表 */
+    int param_count;         /* 参数数量 */
+    AstNode *body;           /* 函数体（AST节点） */
+    XScope *closure_scope;   /* 闭包作用域（暂时为NULL，第六阶段实现） */
+} XrFunction;
 
 /* 
 ** 值对象
@@ -35,32 +52,40 @@ typedef struct {
         int b;           /* 布尔值 */
         xr_Integer i;    /* 整数值 */
         xr_Number n;     /* 浮点数值 */
-        void *obj;       /* 对象指针（字符串、数组等） */
+        void *obj;       /* 对象指针（字符串、数组、函数等） */
     } as;
 } XrValue;
 
 /* 类型检查宏 */
-#define xr_isnull(v)    ((v)->type == XR_TNULL)
-#define xr_isbool(v)    ((v)->type == XR_TBOOL)
-#define xr_isint(v)     ((v)->type == XR_TINT)
-#define xr_isfloat(v)   ((v)->type == XR_TFLOAT)
-#define xr_isstring(v)  ((v)->type == XR_TSTRING)
-#define xr_isarray(v)   ((v)->type == XR_TARRAY)
+#define xr_isnull(v)      ((v)->type == XR_TNULL)
+#define xr_isbool(v)      ((v)->type == XR_TBOOL)
+#define xr_isint(v)       ((v)->type == XR_TINT)
+#define xr_isfloat(v)     ((v)->type == XR_TFLOAT)
+#define xr_isstring(v)    ((v)->type == XR_TSTRING)
+#define xr_isfunction(v)  ((v)->type == XR_TFUNCTION)
+#define xr_isarray(v)     ((v)->type == XR_TARRAY)
 
 /* 值访问宏 */
-#define xr_tobool(v)    ((v)->as.b)
-#define xr_toint(v)     ((v)->as.i)
-#define xr_tofloat(v)   ((v)->as.n)
-#define xr_toobj(v)     ((v)->as.obj)
+#define xr_tobool(v)      ((v)->as.b)
+#define xr_toint(v)       ((v)->as.i)
+#define xr_tofloat(v)     ((v)->as.n)
+#define xr_toobj(v)       ((v)->as.obj)
+#define xr_tofunction(v)  ((XrFunction *)(v)->as.obj)
 
 /* 值设置宏 */
-#define xr_setnull(v)       ((v)->type = XR_TNULL)
-#define xr_setbool(v, val)  ((v)->type = XR_TBOOL, (v)->as.b = (val))
-#define xr_setint(v, val)   ((v)->type = XR_TINT, (v)->as.i = (val))
-#define xr_setfloat(v, val) ((v)->type = XR_TFLOAT, (v)->as.n = (val))
+#define xr_setnull(v)         ((v)->type = XR_TNULL)
+#define xr_setbool(v, val)    ((v)->type = XR_TBOOL, (v)->as.b = (val))
+#define xr_setint(v, val)     ((v)->type = XR_TINT, (v)->as.i = (val))
+#define xr_setfloat(v, val)   ((v)->type = XR_TFLOAT, (v)->as.n = (val))
+#define xr_setfunction(v, f)  ((v)->type = XR_TFUNCTION, (v)->as.obj = (f))
 
 /* 值操作函数 */
 const char *xr_typename(XrType type);
+
+/* 函数对象操作 */
+XrFunction *xr_function_new(const char *name, char **parameters, 
+                            int param_count, AstNode *body);
+void xr_function_free(XrFunction *func);
 
 #endif /* xvalue_h */
 

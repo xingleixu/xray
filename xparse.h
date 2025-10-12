@@ -121,6 +121,13 @@ AstNode *xr_parse_variable(Parser *parser);
 AstNode *xr_parse_assignment(Parser *parser, AstNode *left);
 
 /*
+** 函数相关解析函数
+*/
+AstNode *xr_parse_function_declaration(Parser *parser);
+AstNode *xr_parse_call_expr(Parser *parser, AstNode *callee);
+AstNode *xr_parse_return_statement(Parser *parser);
+
+/*
 ** 获取 Token 的解析规则
 */
 const ParseRule *xr_get_rule(TokenType type);

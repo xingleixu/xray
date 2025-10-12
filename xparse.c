@@ -18,7 +18,7 @@
 */
 static ParseRule rules[] = {
     /* Token 类型                前缀函数        中缀函数        优先级 */
-    [TK_LPAREN]     = {xr_parse_grouping, NULL,           PREC_NONE},
+    [TK_LPAREN]     = {xr_parse_grouping, xr_parse_call_expr, PREC_CALL},
     [TK_RPAREN]     = {NULL,              NULL,           PREC_NONE},
     [TK_LBRACE]     = {NULL,              NULL,           PREC_NONE},
     [TK_RBRACE]     = {NULL,              NULL,           PREC_NONE},
@@ -405,6 +405,9 @@ AstNode *xr_parse_statement(Parser *parser) {
     if (parser->current.type == TK_CONTINUE) {
         return xr_parse_continue_statement(parser);
     }
+    if (parser->current.type == TK_RETURN) {
+        return xr_parse_return_statement(parser);
+    }
     
     /* 代码块 */
     if (parser->current.type == TK_LBRACE) {
@@ -715,10 +718,135 @@ AstNode *xr_parse_continue_statement(Parser *parser) {
     return xr_ast_continue_stmt(parser->X, line);
 }
 
+/* ========== 函数相关解析 ========== */
+
+/*
+** 解析函数声明
+** function add(a, b) { return a + b }
+*/
+AstNode *xr_parse_function_declaration(Parser *parser) {
+    int line = parser->previous.line;
+    
+    /* 解析函数名 */
+    xr_parser_consume(parser, TK_NAME, "期望函数名");
+    Token name_token = parser->previous;
+    
+    /* 复制函数名 */
+    char *func_name = (char *)malloc(name_token.length + 1);
+    memcpy(func_name, name_token.start, name_token.length);
+    func_name[name_token.length] = '\0';
+    
+    /* 解析参数列表 */
+    xr_parser_consume(parser, TK_LPAREN, "期望 '(' 在函数名后");
+    
+    /* 动态数组存储参数 */
+    char **parameters = NULL;
+    int param_count = 0;
+    int param_capacity = 0;
+    
+    /* 解析参数 */
+    if (!xr_parser_check(parser, TK_RPAREN)) {
+        do {
+            /* 扩容 */
+            if (param_count >= param_capacity) {
+                param_capacity = param_capacity == 0 ? 4 : param_capacity * 2;
+                parameters = (char **)realloc(parameters, sizeof(char *) * param_capacity);
+            }
+            
+            /* 解析参数名 */
+            xr_parser_consume(parser, TK_NAME, "期望参数名");
+            Token param_token = parser->previous;
+            
+            /* 复制参数名 */
+            char *param_name = (char *)malloc(param_token.length + 1);
+            memcpy(param_name, param_token.start, param_token.length);
+            param_name[param_token.length] = '\0';
+            
+            parameters[param_count++] = param_name;
+            
+        } while (xr_parser_match(parser, TK_COMMA));
+    }
+    
+    xr_parser_consume(parser, TK_RPAREN, "期望 ')' 在参数列表后");
+    
+    /* 解析函数体（必须是代码块） */
+    xr_parser_consume(parser, TK_LBRACE, "函数体必须使用花括号 { }");
+    AstNode *body = xr_parse_block(parser);
+    
+    /* 创建函数声明节点 */
+    AstNode *func_decl = xr_ast_function_decl(parser->X, func_name, 
+                                              parameters, param_count, body, line);
+    
+    /* 释放临时分配的函数名（AST已经复制了一份） */
+    free(func_name);
+    
+    return func_decl;
+}
+
+/*
+** 解析函数调用
+** add(1, 2)
+** callee: 被调用的表达式（通常是变量）
+*/
+AstNode *xr_parse_call_expr(Parser *parser, AstNode *callee) {
+    int line = parser->previous.line;
+    
+    /* 动态数组存储参数 */
+    AstNode **arguments = NULL;
+    int arg_count = 0;
+    int arg_capacity = 0;
+    
+    /* 解析参数列表 */
+    if (!xr_parser_check(parser, TK_RPAREN)) {
+        do {
+            /* 扩容 */
+            if (arg_count >= arg_capacity) {
+                arg_capacity = arg_capacity == 0 ? 4 : arg_capacity * 2;
+                arguments = (AstNode **)realloc(arguments, sizeof(AstNode *) * arg_capacity);
+            }
+            
+            /* 解析参数表达式 */
+            arguments[arg_count++] = xr_parse_expression(parser);
+            
+        } while (xr_parser_match(parser, TK_COMMA));
+    }
+    
+    xr_parser_consume(parser, TK_RPAREN, "期望 ')' 在参数列表后");
+    
+    /* 创建函数调用节点 */
+    return xr_ast_call_expr(parser->X, callee, arguments, arg_count, line);
+}
+
+/*
+** 解析 return 语句
+** return expr 或 return
+*/
+AstNode *xr_parse_return_statement(Parser *parser) {
+    int line = parser->previous.line;
+    xr_parser_advance(parser);  /* 消费 'return' */
+    
+    /* 检查是否有返回值 */
+    AstNode *value = NULL;
+    
+    /* 如果不是语句结束符，解析返回值表达式 */
+    /* 注意：Xray 没有分号结束符，所以我们检查是否是块结束或新语句开始 */
+    if (parser->current.type != TK_RBRACE &&  /* 不是块结束 */
+        parser->current.type != TK_EOF) {      /* 不是文件结束 */
+        value = xr_parse_expression(parser);
+    }
+    
+    return xr_ast_return_stmt(parser->X, value, line);
+}
+
 /*
 ** 解析声明（变量声明、常量声明或语句）
 */
 AstNode *xr_parse_declaration(Parser *parser) {
+    /* 函数声明 */
+    if (xr_parser_match(parser, TK_FUNCTION)) {
+        return xr_parse_function_declaration(parser);
+    }
+    
     /* 变量声明 */
     if (xr_parser_match(parser, TK_LET)) {
         return xr_parse_var_declaration(parser, 0);  /* 0 表示可变变量 */

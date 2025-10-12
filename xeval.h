@@ -28,6 +28,15 @@ typedef struct {
 } LoopControl;
 
 /*
+** 返回控制状态
+** 用于处理 return 语句
+*/
+typedef struct {
+    int has_returned;        /* 是否执行了 return */
+    XrValue return_value;    /* 返回值 */
+} ReturnControl;
+
+/*
 ** 主要求值函数
 ** 遍历 AST 节点并返回计算结果（内部创建符号表）
 */
@@ -45,20 +54,28 @@ XrValue xr_eval_with_symbols(XrayState *X, AstNode *node, XSymbolTable *symbols)
 /*
 ** 变量相关求值（内部函数，需要loop参数）
 */
-XrValue xr_eval_var_decl(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop);
+XrValue xr_eval_var_decl(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret);
 XrValue xr_eval_variable(XrayState *X, AstNode *node, XSymbolTable *symbols);
-XrValue xr_eval_assignment(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop);
+XrValue xr_eval_assignment(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret);
 XrValue xr_eval_block(XrayState *X, AstNode *node, XSymbolTable *symbols);
 
 /*
 ** 控制流语句求值（内部函数）
 ** 这些函数需要 LoopControl 参数来处理 break/continue
 */
-XrValue xr_eval_if_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop);
-XrValue xr_eval_while_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop);
-XrValue xr_eval_for_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop);
+XrValue xr_eval_if_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret);
+XrValue xr_eval_while_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret);
+XrValue xr_eval_for_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret);
 XrValue xr_eval_break_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop);
 XrValue xr_eval_continue_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop);
+
+/*
+** 函数相关求值（内部函数）
+** 这些函数需要 ReturnControl 参数来处理 return
+*/
+XrValue xr_eval_function_decl(XrayState *X, AstNode *node, XSymbolTable *symbols);
+XrValue xr_eval_call_expr(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret);
+XrValue xr_eval_return_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret);
 
 /* ========== 运算辅助函数 ========== */
 

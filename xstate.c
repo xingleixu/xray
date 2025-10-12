@@ -58,3 +58,119 @@ int xray_dostring(XrayState *X, const char *source) {
     return 0;
 }
 
+/* ========== 调用栈实现 ========== */
+
+/*
+** 创建新的调用栈
+** max_depth: 最大调用深度限制
+** 返回：新创建的调用栈，失败返回 NULL
+*/
+CallStack *xr_callstack_new(int max_depth) {
+    CallStack *stack = (CallStack *)malloc(sizeof(CallStack));
+    if (stack == NULL) {
+        return NULL;
+    }
+    
+    stack->top = NULL;
+    stack->depth = 0;
+    stack->max_depth = max_depth;
+    
+    return stack;
+}
+
+/*
+** 释放调用栈
+** stack: 要释放的调用栈
+*/
+void xr_callstack_free(CallStack *stack) {
+    if (stack == NULL) {
+        return;
+    }
+    
+    /* 释放所有调用帧 */
+    while (stack->top != NULL) {
+        CallFrame *frame = stack->top;
+        stack->top = frame->prev;
+        free(frame);
+    }
+    
+    free(stack);
+}
+
+/*
+** 压入新的调用帧
+** stack: 调用栈
+** func: 函数对象
+** symbols: 局部变量符号表
+** line: 当前行号
+** 返回：1 表示成功，0 表示栈溢出
+*/
+int xr_callstack_push(CallStack *stack, XrFunction *func,
+                      XSymbolTable *symbols, int line) {
+    if (stack == NULL) {
+        return 0;
+    }
+    
+    /* 检查栈深度 */
+    if (stack->depth >= stack->max_depth) {
+        return 0;  /* 栈溢出 */
+    }
+    
+    /* 创建新的调用帧 */
+    CallFrame *frame = (CallFrame *)malloc(sizeof(CallFrame));
+    if (frame == NULL) {
+        return 0;
+    }
+    
+    frame->function = func;
+    frame->local_symbols = symbols;
+    frame->line = line;
+    frame->prev = stack->top;
+    
+    /* 压入栈 */
+    stack->top = frame;
+    stack->depth++;
+    
+    return 1;
+}
+
+/*
+** 弹出调用帧
+** stack: 调用栈
+*/
+void xr_callstack_pop(CallStack *stack) {
+    if (stack == NULL || stack->top == NULL) {
+        return;
+    }
+    
+    CallFrame *frame = stack->top;
+    stack->top = frame->prev;
+    stack->depth--;
+    
+    free(frame);
+}
+
+/*
+** 获取栈顶帧
+** stack: 调用栈
+** 返回：栈顶帧，栈为空返回 NULL
+*/
+CallFrame *xr_callstack_top(CallStack *stack) {
+    if (stack == NULL) {
+        return NULL;
+    }
+    return stack->top;
+}
+
+/*
+** 获取当前调用深度
+** stack: 调用栈
+** 返回：当前深度
+*/
+int xr_callstack_depth(CallStack *stack) {
+    if (stack == NULL) {
+        return 0;
+    }
+    return stack->depth;
+}
+

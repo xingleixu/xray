@@ -1,0 +1,52 @@
+// 16_recursion.xr - 递归函数测试
+
+// 测试1：阶乘
+function factorial(n) {
+    if (n <= 1) {
+        return 1
+    }
+    return n * factorial(n - 1)
+}
+
+print("Factorials:")
+print(factorial(1))
+print(factorial(5))
+print(factorial(10))
+
+// 测试2：斐波那契数列
+function fib(n) {
+    if (n <= 1) {
+        return n
+    }
+    return fib(n - 1) + fib(n - 2)
+}
+
+print("Fibonacci:")
+for (let i = 0; i < 15; i = i + 1) {
+    print(fib(i))
+}
+
+// 测试3：最大公约数（GCD）
+function gcd(a, b) {
+    if (b == 0) {
+        return a
+    }
+    return gcd(b, a % b)
+}
+
+print("GCD:")
+print(gcd(48, 18))
+print(gcd(100, 35))
+print(gcd(17, 5))
+
+// 测试4：递归求和
+function sum(n) {
+    if (n == 0) {
+        return 0
+    }
+    return n + sum(n - 1)
+}
+
+print("Sum 1 to 10:")
+print(sum(10))
+

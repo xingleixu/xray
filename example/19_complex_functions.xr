@@ -1,0 +1,96 @@
+// 19_complex_functions.xr - 复杂函数测试
+
+// 测试1：多重嵌套调用
+function f1(x) {
+    return x + 1
+}
+
+function f2(x) {
+    return f1(f1(x))
+}
+
+function f3(x) {
+    return f2(f2(x))
+}
+
+print("Nested calls:")
+print(f3(0))
+
+// 测试2：相互递归（简化版，不使用真正的相互递归）
+function isEvenHelper(n) {
+    if (n == 0) {
+        return true
+    }
+    if (n == 1) {
+        return false
+    }
+    return isEvenHelper(n - 2)
+}
+
+function isOddHelper(n) {
+    if (n == 0) {
+        return false
+    }
+    if (n == 1) {
+        return true
+    }
+    return isOddHelper(n - 2)
+}
+
+print("Even/Odd:")
+print(isEvenHelper(10))
+print(isOddHelper(10))
+print(isEvenHelper(7))
+print(isOddHelper(7))
+
+// 测试3：复杂计算
+function power(base, exp) {
+    if (exp == 0) {
+        return 1
+    }
+    return base * power(base, exp - 1)
+}
+
+print("Power:")
+print(power(2, 10))
+print(power(3, 5))
+
+// 测试4：多个return路径
+function abs(x) {
+    if (x < 0) {
+        return -x
+    }
+    return x
+}
+
+function max(a, b) {
+    if (a > b) {
+        return a
+    }
+    return b
+}
+
+function min(a, b) {
+    if (a < b) {
+        return a
+    }
+    return b
+}
+
+print("Math functions:")
+print(abs(-10))
+print(abs(10))
+print(max(20, 15))
+print(min(20, 15))
+
+// 测试5：递归搜索
+function findMax(a, b, c, d, e) {
+    let m1 = max(a, b)
+    let m2 = max(c, d)
+    let m3 = max(m1, m2)
+    return max(m3, e)
+}
+
+print("Find max:")
+print(findMax(3, 7, 2, 9, 5))
+

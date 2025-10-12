@@ -1,0 +1,35 @@
+// 简单函数测试
+
+// 测试1：简单函数
+function add(a, b) {
+    return a + b
+}
+
+print(add(10, 20))
+print(add(5, 15))
+
+// 测试2：无参数函数
+function getNumber() {
+    return 42
+}
+
+print(getNumber())
+
+// 测试3：多个参数
+function sum3(a, b, c) {
+    return a + b + c
+}
+
+print(sum3(10, 20, 30))
+
+// 测试4：函数调用函数
+function double(x) {
+    return x * 2
+}
+
+function quadruple(x) {
+    return double(double(x))
+}
+
+print(quadruple(5))
+
