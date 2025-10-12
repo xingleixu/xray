@@ -49,6 +49,8 @@ typedef enum {
     TK_ELSE,            /* else */
     TK_WHILE,           /* while */
     TK_FOR,             /* for */
+    TK_BREAK,           /* break */
+    TK_CONTINUE,        /* continue */
     TK_RETURN,          /* return */
     TK_NULL,            /* null */
     TK_TRUE,            /* true */

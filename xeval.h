@@ -13,6 +13,21 @@
 #include "xscope.h"
 
 /*
+** 循环控制状态
+** 用于处理 break 和 continue 语句
+*/
+typedef enum {
+    LOOP_NONE,       /* 正常状态 */
+    LOOP_BREAK,      /* break 触发 */
+    LOOP_CONTINUE,   /* continue 触发 */
+} LoopControlState;
+
+typedef struct {
+    LoopControlState state;  /* 当前状态 */
+    int loop_depth;          /* 循环深度（用于检查 break/continue 的合法性） */
+} LoopControl;
+
+/*
 ** 主要求值函数
 ** 遍历 AST 节点并返回计算结果（内部创建符号表）
 */
@@ -28,12 +43,22 @@ XrValue xr_eval_with_symbols(XrayState *X, AstNode *node, XSymbolTable *symbols)
 /* 这些函数现在是 xeval.c 的内部静态函数，不对外暴露 */
 
 /*
-** 变量相关求值
+** 变量相关求值（内部函数，需要loop参数）
 */
-XrValue xr_eval_var_decl(XrayState *X, AstNode *node, XSymbolTable *symbols);
+XrValue xr_eval_var_decl(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop);
 XrValue xr_eval_variable(XrayState *X, AstNode *node, XSymbolTable *symbols);
-XrValue xr_eval_assignment(XrayState *X, AstNode *node, XSymbolTable *symbols);
+XrValue xr_eval_assignment(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop);
 XrValue xr_eval_block(XrayState *X, AstNode *node, XSymbolTable *symbols);
+
+/*
+** 控制流语句求值（内部函数）
+** 这些函数需要 LoopControl 参数来处理 break/continue
+*/
+XrValue xr_eval_if_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop);
+XrValue xr_eval_while_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop);
+XrValue xr_eval_for_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop);
+XrValue xr_eval_break_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop);
+XrValue xr_eval_continue_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop);
 
 /* ========== 运算辅助函数 ========== */
 

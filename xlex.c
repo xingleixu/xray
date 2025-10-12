@@ -127,11 +127,21 @@ static TokenType check_keyword(Scanner *scanner, int start, int length,
 /* 识别标识符类型（关键字或普通标识符） */
 static TokenType identifier_type(Scanner *scanner) {
     switch (scanner->start[0]) {
+        case 'b': return check_keyword(scanner, 1, 4, "reak", TK_BREAK);
         case 'c':
             if (scanner->current - scanner->start > 1) {
                 switch (scanner->start[1]) {
                     case 'l': return check_keyword(scanner, 2, 3, "ass", TK_CLASS);
-                    case 'o': return check_keyword(scanner, 2, 3, "nst", TK_CONST);
+                    case 'o':
+                        if (scanner->current - scanner->start > 2) {
+                            switch (scanner->start[2]) {
+                                case 'n':
+                                    if (scanner->current - scanner->start == 5) {
+                                        return check_keyword(scanner, 2, 3, "nst", TK_CONST);
+                                    }
+                                    return check_keyword(scanner, 2, 6, "ntinue", TK_CONTINUE);
+                            }
+                        }
                 }
             }
             break;
@@ -322,6 +332,8 @@ const char *xr_token_name(TokenType type) {
         case TK_ELSE: return "else";
         case TK_WHILE: return "while";
         case TK_FOR: return "for";
+        case TK_BREAK: return "break";
+        case TK_CONTINUE: return "continue";
         case TK_RETURN: return "return";
         case TK_NULL: return "null";
         case TK_TRUE: return "true";

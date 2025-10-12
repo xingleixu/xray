@@ -1,0 +1,33 @@
+// 条件判断示例
+
+// 简单 if
+let x = 10
+if (x > 5) {
+    print("x is greater than 5")
+}
+
+// if-else
+let score = 85
+if (score >= 90) {
+    print("A")
+} else if (score >= 80) {
+    print("B")
+} else if (score >= 60) {
+    print("C")
+} else {
+    print("F")
+}
+
+// 嵌套 if
+let age = 25
+let hasLicense = true
+if (age >= 18) {
+    if (hasLicense) {
+        print("Can drive")
+    } else {
+        print("Need license")
+    }
+} else {
+    print("Too young")
+}
+

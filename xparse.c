@@ -389,6 +389,28 @@ AstNode *xr_parse_print_statement(Parser *parser) {
 ** 解析语句
 */
 AstNode *xr_parse_statement(Parser *parser) {
+    /* 控制流语句 */
+    if (parser->current.type == TK_IF) {
+        return xr_parse_if_statement(parser);
+    }
+    if (parser->current.type == TK_WHILE) {
+        return xr_parse_while_statement(parser);
+    }
+    if (parser->current.type == TK_FOR) {
+        return xr_parse_for_statement(parser);
+    }
+    if (parser->current.type == TK_BREAK) {
+        return xr_parse_break_statement(parser);
+    }
+    if (parser->current.type == TK_CONTINUE) {
+        return xr_parse_continue_statement(parser);
+    }
+    
+    /* 代码块 */
+    if (parser->current.type == TK_LBRACE) {
+        return xr_parse_block(parser);
+    }
+    
     /* 暂时硬编码识别 print 关键字（作为 NAME token） */
     if (parser->current.type == TK_NAME && 
         parser->current.length == 5 &&
@@ -555,6 +577,142 @@ AstNode *xr_parse_block(Parser *parser) {
     xr_parser_consume(parser, TK_RBRACE, "期望 '}' 在代码块结束");
     
     return block;
+}
+
+/* ========== 控制流语句解析 ========== */
+
+/*
+** 解析 if 语句
+** if (condition) { ... } else if (...) { ... } else { ... }
+*/
+AstNode *xr_parse_if_statement(Parser *parser) {
+    int line = parser->previous.line;
+    xr_parser_advance(parser);  /* 消费 'if' */
+    
+    /* 解析条件 */
+    xr_parser_consume(parser, TK_LPAREN, "期望 '(' 在 if 后");
+    AstNode *condition = xr_parse_expression(parser);
+    xr_parser_consume(parser, TK_RPAREN, "期望 ')' 在 if 条件后");
+    
+    /* 解析 then 分支（必须是 block） */
+    if (!xr_parser_check(parser, TK_LBRACE)) {
+        xr_parser_error_at_current(parser, "if 语句后面必须使用花括号 { }");
+        return NULL;
+    }
+    xr_parser_advance(parser);  /* 消费 '{' */
+    AstNode *then_branch = xr_parse_block(parser);
+    
+    /* 解析 else 分支（可选） */
+    AstNode *else_branch = NULL;
+    if (xr_parser_match(parser, TK_ELSE)) {
+        /* else 后面可以是 block 或 if（else if） */
+        if (xr_parser_check(parser, TK_IF)) {
+            /* else if */
+            else_branch = xr_parse_if_statement(parser);
+        } else {
+            /* else block */
+            if (!xr_parser_check(parser, TK_LBRACE)) {
+                xr_parser_error_at_current(parser, "else 后面必须使用花括号 { } 或 if 语句");
+                return NULL;
+            }
+            xr_parser_advance(parser);  /* 消费 '{' */
+            else_branch = xr_parse_block(parser);
+        }
+    }
+    
+    return xr_ast_if_stmt(parser->X, condition, then_branch, else_branch, line);
+}
+
+/*
+** 解析 while 循环
+** while (condition) { ... }
+*/
+AstNode *xr_parse_while_statement(Parser *parser) {
+    int line = parser->previous.line;
+    xr_parser_advance(parser);  /* 消费 'while' */
+    
+    /* 解析条件 */
+    xr_parser_consume(parser, TK_LPAREN, "期望 '(' 在 while 后");
+    AstNode *condition = xr_parse_expression(parser);
+    xr_parser_consume(parser, TK_RPAREN, "期望 ')' 在 while 条件后");
+    
+    /* 解析循环体（必须是 block） */
+    if (!xr_parser_check(parser, TK_LBRACE)) {
+        xr_parser_error_at_current(parser, "while 语句后面必须使用花括号 { }");
+        return NULL;
+    }
+    xr_parser_advance(parser);  /* 消费 '{' */
+    AstNode *body = xr_parse_block(parser);
+    
+    return xr_ast_while_stmt(parser->X, condition, body, line);
+}
+
+/*
+** 解析 for 循环
+** for (init; condition; increment) { ... }
+*/
+AstNode *xr_parse_for_statement(Parser *parser) {
+    int line = parser->previous.line;
+    xr_parser_advance(parser);  /* 消费 'for' */
+    
+    xr_parser_consume(parser, TK_LPAREN, "期望 '(' 在 for 后");
+    
+    /* 解析初始化（可选） */
+    AstNode *initializer = NULL;
+    if (xr_parser_match(parser, TK_SEMICOLON)) {
+        /* 省略初始化 */
+        initializer = NULL;
+    } else if (xr_parser_match(parser, TK_LET)) {
+        /* let 声明 */
+        initializer = xr_parse_var_declaration(parser, 0);
+        xr_parser_consume(parser, TK_SEMICOLON, "期望 ';' 在 for 循环初始化后");
+    } else {
+        /* 表达式 */
+        initializer = xr_parse_expr_statement(parser);
+        xr_parser_consume(parser, TK_SEMICOLON, "期望 ';' 在 for 循环初始化后");
+    }
+    
+    /* 解析条件（可选） */
+    AstNode *condition = NULL;
+    if (!xr_parser_check(parser, TK_SEMICOLON)) {
+        condition = xr_parse_expression(parser);
+    }
+    xr_parser_consume(parser, TK_SEMICOLON, "期望 ';' 在 for 循环条件后");
+    
+    /* 解析更新（可选） */
+    AstNode *increment = NULL;
+    if (!xr_parser_check(parser, TK_RPAREN)) {
+        increment = xr_parse_expression(parser);
+    }
+    xr_parser_consume(parser, TK_RPAREN, "期望 ')' 在 for 循环头后");
+    
+    /* 解析循环体（必须是 block） */
+    if (!xr_parser_check(parser, TK_LBRACE)) {
+        xr_parser_error_at_current(parser, "for 语句后面必须使用花括号 { }");
+        return NULL;
+    }
+    xr_parser_advance(parser);  /* 消费 '{' */
+    AstNode *body = xr_parse_block(parser);
+    
+    return xr_ast_for_stmt(parser->X, initializer, condition, increment, body, line);
+}
+
+/*
+** 解析 break 语句
+*/
+AstNode *xr_parse_break_statement(Parser *parser) {
+    int line = parser->previous.line;
+    xr_parser_advance(parser);  /* 消费 'break' */
+    return xr_ast_break_stmt(parser->X, line);
+}
+
+/*
+** 解析 continue 语句
+*/
+AstNode *xr_parse_continue_statement(Parser *parser) {
+    int line = parser->previous.line;
+    xr_parser_advance(parser);  /* 消费 'continue' */
+    return xr_ast_continue_stmt(parser->X, line);
 }
 
 /*

@@ -12,16 +12,17 @@
 #include "xeval.h"
 
 /* 内部求值函数前向声明 */
-static XrValue xr_eval_internal(XrayState *X, AstNode *node, XSymbolTable *symbols);
+static XrValue xr_eval_internal(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop);
 static XrValue xr_eval_literal(XrayState *X, AstNode *node);
-static XrValue xr_eval_binary(XrayState *X, AstNode *node, XSymbolTable *symbols);
-static XrValue xr_eval_unary(XrayState *X, AstNode *node, XSymbolTable *symbols);
-static XrValue xr_eval_grouping(XrayState *X, AstNode *node, XSymbolTable *symbols);
-static XrValue xr_eval_expr_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols);
-static XrValue xr_eval_print_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols);
-static XrValue xr_eval_program(XrayState *X, AstNode *node, XSymbolTable *symbols);
-static XrValue xr_eval_logical_and(XrayState *X, AstNode *left_node, AstNode *right_node, XSymbolTable *symbols);
-static XrValue xr_eval_logical_or(XrayState *X, AstNode *left_node, AstNode *right_node, XSymbolTable *symbols);
+static XrValue xr_eval_binary(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop);
+static XrValue xr_eval_unary(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop);
+static XrValue xr_eval_grouping(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop);
+static XrValue xr_eval_expr_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop);
+static XrValue xr_eval_print_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop);
+static XrValue xr_eval_block_internal(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop);
+static XrValue xr_eval_program(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop);
+static XrValue xr_eval_logical_and(XrayState *X, AstNode *left_node, AstNode *right_node, XSymbolTable *symbols, LoopControl *loop);
+static XrValue xr_eval_logical_or(XrayState *X, AstNode *left_node, AstNode *right_node, XSymbolTable *symbols, LoopControl *loop);
 
 /* ========== 主要求值函数 ========== */
 
@@ -38,8 +39,11 @@ XrValue xr_eval(XrayState *X, AstNode *node) {
         return error_value;
     }
     
+    /* 初始化循环控制 */
+    LoopControl loop = {LOOP_NONE, 0};
+    
     /* 调用内部求值函数 */
-    XrValue result = xr_eval_internal(X, node, symbols);
+    XrValue result = xr_eval_internal(X, node, symbols, &loop);
     
     /* 释放符号表 */
     xsymboltable_free(symbols);
@@ -59,14 +63,17 @@ XrValue xr_eval_with_symbols(XrayState *X, AstNode *node, XSymbolTable *symbols)
         return error_value;
     }
     
-    return xr_eval_internal(X, node, symbols);
+    /* 初始化循环控制 */
+    LoopControl loop = {LOOP_NONE, 0};
+    
+    return xr_eval_internal(X, node, symbols, &loop);
 }
 
 /*
 ** 内部求值函数 - AST 访问者模式的核心
 ** 根据节点类型分发到相应的处理函数
 */
-static XrValue xr_eval_internal(XrayState *X, AstNode *node, XSymbolTable *symbols) {
+static XrValue xr_eval_internal(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop) {
     if (node == NULL) {
         XrValue null_value;
         xr_setnull(&null_value);
@@ -97,40 +104,56 @@ static XrValue xr_eval_internal(XrayState *X, AstNode *node, XSymbolTable *symbo
         case AST_BINARY_GE:
         case AST_BINARY_AND:
         case AST_BINARY_OR:
-            return xr_eval_binary(X, node, symbols);
+            return xr_eval_binary(X, node, symbols, loop);
         
         /* 一元运算节点 */
         case AST_UNARY_NEG:
         case AST_UNARY_NOT:
-            return xr_eval_unary(X, node, symbols);
+            return xr_eval_unary(X, node, symbols, loop);
         
         /* 分组节点 */
         case AST_GROUPING:
-            return xr_eval_grouping(X, node, symbols);
+            return xr_eval_grouping(X, node, symbols, loop);
         
         /* 语句节点 */
         case AST_EXPR_STMT:
-            return xr_eval_expr_stmt(X, node, symbols);
+            return xr_eval_expr_stmt(X, node, symbols, loop);
         
         case AST_PRINT_STMT:
-            return xr_eval_print_stmt(X, node, symbols);
+            return xr_eval_print_stmt(X, node, symbols, loop);
         
         case AST_BLOCK:
-            return xr_eval_block(X, node, symbols);
+            return xr_eval_block_internal(X, node, symbols, loop);
         
         /* 变量相关节点 */
         case AST_VAR_DECL:
         case AST_CONST_DECL:
-            return xr_eval_var_decl(X, node, symbols);
+            return xr_eval_var_decl(X, node, symbols, loop);
         
         case AST_VARIABLE:
             return xr_eval_variable(X, node, symbols);
         
         case AST_ASSIGNMENT:
-            return xr_eval_assignment(X, node, symbols);
+            return xr_eval_assignment(X, node, symbols, loop);
+        
+        /* 控制流节点 */
+        case AST_IF_STMT:
+            return xr_eval_if_stmt(X, node, symbols, loop);
+        
+        case AST_WHILE_STMT:
+            return xr_eval_while_stmt(X, node, symbols, loop);
+        
+        case AST_FOR_STMT:
+            return xr_eval_for_stmt(X, node, symbols, loop);
+        
+        case AST_BREAK_STMT:
+            return xr_eval_break_stmt(X, node, symbols, loop);
+        
+        case AST_CONTINUE_STMT:
+            return xr_eval_continue_stmt(X, node, symbols, loop);
         
         case AST_PROGRAM:
-            return xr_eval_program(X, node, symbols);
+            return xr_eval_program(X, node, symbols, loop);
         
         default:
             xr_runtime_error(X, node->line, "未知的 AST 节点类型: %d", node->type);
@@ -153,18 +176,18 @@ static XrValue xr_eval_literal(XrayState *X, AstNode *node) {
 /*
 ** 二元运算求值
 */
-static XrValue xr_eval_binary(XrayState *X, AstNode *node, XSymbolTable *symbols) {
+static XrValue xr_eval_binary(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop) {
     /* 逻辑运算需要短路求值，特殊处理 */
     if (node->type == AST_BINARY_AND) {
-        return xr_eval_logical_and(X, node->as.binary.left, node->as.binary.right, symbols);
+        return xr_eval_logical_and(X, node->as.binary.left, node->as.binary.right, symbols, loop);
     }
     if (node->type == AST_BINARY_OR) {
-        return xr_eval_logical_or(X, node->as.binary.left, node->as.binary.right, symbols);
+        return xr_eval_logical_or(X, node->as.binary.left, node->as.binary.right, symbols, loop);
     }
     
     /* 其他运算：先求值两个操作数 */
-    XrValue left = xr_eval_internal(X, node->as.binary.left, symbols);
-    XrValue right = xr_eval_internal(X, node->as.binary.right, symbols);
+    XrValue left = xr_eval_internal(X, node->as.binary.left, symbols, loop);
+    XrValue right = xr_eval_internal(X, node->as.binary.right, symbols, loop);
     
     /* 根据运算符类型执行计算 */
     switch (node->type) {
@@ -191,8 +214,8 @@ static XrValue xr_eval_binary(XrayState *X, AstNode *node, XSymbolTable *symbols
 /*
 ** 一元运算求值
 */
-static XrValue xr_eval_unary(XrayState *X, AstNode *node, XSymbolTable *symbols) {
-    XrValue operand = xr_eval_internal(X, node->as.unary.operand, symbols);
+static XrValue xr_eval_unary(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop) {
+    XrValue operand = xr_eval_internal(X, node->as.unary.operand, symbols, loop);
     
     switch (node->type) {
         case AST_UNARY_NEG:
@@ -211,22 +234,22 @@ static XrValue xr_eval_unary(XrayState *X, AstNode *node, XSymbolTable *symbols)
 /*
 ** 分组表达式求值（括号）
 */
-static XrValue xr_eval_grouping(XrayState *X, AstNode *node, XSymbolTable *symbols) {
-    return xr_eval_internal(X, node->as.grouping, symbols);
+static XrValue xr_eval_grouping(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop) {
+    return xr_eval_internal(X, node->as.grouping, symbols, loop);
 }
 
 /*
 ** 表达式语句求值
 */
-static XrValue xr_eval_expr_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols) {
-    return xr_eval_internal(X, node->as.expr_stmt, symbols);
+static XrValue xr_eval_expr_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop) {
+    return xr_eval_internal(X, node->as.expr_stmt, symbols, loop);
 }
 
 /*
 ** print 语句求值
 */
-static XrValue xr_eval_print_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols) {
-    XrValue value = xr_eval_internal(X, node->as.print_stmt.expr, symbols);
+static XrValue xr_eval_print_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop) {
+    XrValue value = xr_eval_internal(X, node->as.print_stmt.expr, symbols, loop);
     
     /* 打印值 */
     const char *str = xr_value_to_string(X, value);
@@ -241,13 +264,13 @@ static XrValue xr_eval_print_stmt(XrayState *X, AstNode *node, XSymbolTable *sym
 /*
 ** 程序求值（执行多个语句）
 */
-static XrValue xr_eval_program(XrayState *X, AstNode *node, XSymbolTable *symbols) {
+static XrValue xr_eval_program(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop) {
     XrValue last_value;
     xr_setnull(&last_value);
     
     /* 执行所有语句，返回最后一个语句的值 */
     for (int i = 0; i < node->as.program.count; i++) {
-        last_value = xr_eval_internal(X, node->as.program.statements[i], symbols);
+        last_value = xr_eval_internal(X, node->as.program.statements[i], symbols, loop);
     }
     
     return last_value;
@@ -504,8 +527,8 @@ XrValue xr_eval_greater_equal(XrayState *X, XrValue left, XrValue right) {
 /*
 ** 逻辑与（短路求值）
 */
-static XrValue xr_eval_logical_and(XrayState *X, AstNode *left_node, AstNode *right_node, XSymbolTable *symbols) {
-    XrValue left = xr_eval_internal(X, left_node, symbols);
+static XrValue xr_eval_logical_and(XrayState *X, AstNode *left_node, AstNode *right_node, XSymbolTable *symbols, LoopControl *loop) {
+    XrValue left = xr_eval_internal(X, left_node, symbols, loop);
     
     /* 如果左边为假，直接返回左边的值（短路） */
     if (!xr_is_truthy(left)) {
@@ -513,14 +536,14 @@ static XrValue xr_eval_logical_and(XrayState *X, AstNode *left_node, AstNode *ri
     }
     
     /* 否则返回右边的值 */
-    return xr_eval_internal(X, right_node, symbols);
+    return xr_eval_internal(X, right_node, symbols, loop);
 }
 
 /*
 ** 逻辑或（短路求值）
 */
-static XrValue xr_eval_logical_or(XrayState *X, AstNode *left_node, AstNode *right_node, XSymbolTable *symbols) {
-    XrValue left = xr_eval_internal(X, left_node, symbols);
+static XrValue xr_eval_logical_or(XrayState *X, AstNode *left_node, AstNode *right_node, XSymbolTable *symbols, LoopControl *loop) {
+    XrValue left = xr_eval_internal(X, left_node, symbols, loop);
     
     /* 如果左边为真，直接返回左边的值（短路） */
     if (xr_is_truthy(left)) {
@@ -528,7 +551,7 @@ static XrValue xr_eval_logical_or(XrayState *X, AstNode *left_node, AstNode *rig
     }
     
     /* 否则返回右边的值 */
-    return xr_eval_internal(X, right_node, symbols);
+    return xr_eval_internal(X, right_node, symbols, loop);
 }
 
 /*
@@ -670,14 +693,14 @@ void xr_runtime_error(XrayState *X, int line, const char *format, ...) {
 /*
 ** 变量声明求值：let x = 10 或 const PI = 3.14
 */
-XrValue xr_eval_var_decl(XrayState *X, AstNode *node, XSymbolTable *symbols) {
+XrValue xr_eval_var_decl(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop) {
     const char *name = node->as.var_decl.name;
     bool is_const = node->as.var_decl.is_const;
     
     /* 计算初始化表达式 */
     XrValue init_value;
     if (node->as.var_decl.initializer != NULL) {
-        init_value = xr_eval_internal(X, node->as.var_decl.initializer, symbols);
+        init_value = xr_eval_internal(X, node->as.var_decl.initializer, symbols, loop);
     } else {
         /* 无初始化表达式，设为 null */
         xr_setnull(&init_value);
@@ -713,11 +736,11 @@ XrValue xr_eval_variable(XrayState *X, AstNode *node, XSymbolTable *symbols) {
 /*
 ** 赋值求值：x = 10
 */
-XrValue xr_eval_assignment(XrayState *X, AstNode *node, XSymbolTable *symbols) {
+XrValue xr_eval_assignment(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop) {
     const char *name = node->as.assignment.name;
     
     /* 计算赋值表达式 */
-    XrValue value = xr_eval_internal(X, node->as.assignment.value, symbols);
+    XrValue value = xr_eval_internal(X, node->as.assignment.value, symbols, loop);
     
     /* 赋值 */
     if (!xsymboltable_assign(symbols, name, value)) {
@@ -737,8 +760,11 @@ XrValue xr_eval_assignment(XrayState *X, AstNode *node, XSymbolTable *symbols) {
 
 /*
 ** 代码块求值：{ ... }
+** 注意：block不需要loop参数，因为它内部会通过xr_eval_internal传递
+** 但为了调用xr_eval_internal，我们需要创建一个临时的loop或接受外部的loop
+** 这里我们通过在switch中直接调用内部实现来处理
 */
-XrValue xr_eval_block(XrayState *X, AstNode *node, XSymbolTable *symbols) {
+static XrValue xr_eval_block_internal(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop) {
     /* 进入新作用域 */
     xsymboltable_begin_scope(symbols);
     
@@ -747,11 +773,168 @@ XrValue xr_eval_block(XrayState *X, AstNode *node, XSymbolTable *symbols) {
     
     /* 执行代码块中的所有语句 */
     for (int i = 0; i < node->as.block.count; i++) {
-        last_value = xr_eval_internal(X, node->as.block.statements[i], symbols);
+        last_value = xr_eval_internal(X, node->as.block.statements[i], symbols, loop);
+        
+        /* 如果遇到break/continue，停止执行剩余语句 */
+        if (loop && (loop->state == LOOP_BREAK || loop->state == LOOP_CONTINUE)) {
+            break;
+        }
     }
     
     /* 退出作用域 */
     xsymboltable_end_scope(symbols);
     
     return last_value;
+}
+
+XrValue xr_eval_block(XrayState *X, AstNode *node, XSymbolTable *symbols) {
+    LoopControl loop = {LOOP_NONE, 0};
+    return xr_eval_block_internal(X, node, symbols, &loop);
+}
+
+/* ========== 控制流语句求值 ========== */
+
+/*
+** if 语句求值
+*/
+XrValue xr_eval_if_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop) {
+    /* 求值条件 */
+    XrValue condition = xr_eval_internal(X, node->as.if_stmt.condition, symbols, loop);
+    
+    /* 根据条件执行相应分支 */
+    if (xr_is_truthy(condition)) {
+        return xr_eval_block_internal(X, node->as.if_stmt.then_branch, symbols, loop);
+    } else if (node->as.if_stmt.else_branch != NULL) {
+        /* else分支可能是block或if语句 */
+        if (node->as.if_stmt.else_branch->type == AST_IF_STMT) {
+            return xr_eval_if_stmt(X, node->as.if_stmt.else_branch, symbols, loop);
+        } else {
+            return xr_eval_block_internal(X, node->as.if_stmt.else_branch, symbols, loop);
+        }
+    }
+    
+    XrValue null_value;
+    xr_setnull(&null_value);
+    return null_value;
+}
+
+/*
+** while 循环求值
+*/
+XrValue xr_eval_while_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop) {
+    loop->loop_depth++;  /* 进入循环 */
+    
+    XrValue result;
+    xr_setnull(&result);
+    
+    while (1) {
+        /* 求值条件 */
+        XrValue condition = xr_eval_internal(X, node->as.while_stmt.condition, symbols, loop);
+        if (!xr_is_truthy(condition)) {
+            break;  /* 条件为假，退出循环 */
+        }
+        
+        /* 执行循环体 */
+        result = xr_eval_block_internal(X, node->as.while_stmt.body, symbols, loop);
+        
+        /* 检查 break/continue */
+        if (loop->state == LOOP_BREAK) {
+            loop->state = LOOP_NONE;  /* 清除状态 */
+            break;
+        } else if (loop->state == LOOP_CONTINUE) {
+            loop->state = LOOP_NONE;  /* 清除状态 */
+            continue;  /* 继续下次迭代 */
+        }
+    }
+    
+    loop->loop_depth--;  /* 退出循环 */
+    return result;
+}
+
+/*
+** for 循环求值
+*/
+XrValue xr_eval_for_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop) {
+    /* 创建新作用域（for循环变量） */
+    xsymboltable_begin_scope(symbols);
+    
+    /* 执行初始化 */
+    if (node->as.for_stmt.initializer != NULL) {
+        xr_eval_internal(X, node->as.for_stmt.initializer, symbols, loop);
+    }
+    
+    loop->loop_depth++;  /* 进入循环 */
+    
+    XrValue result;
+    xr_setnull(&result);
+    
+    while (1) {
+        /* 检查条件 */
+        if (node->as.for_stmt.condition != NULL) {
+            XrValue condition = xr_eval_internal(X, node->as.for_stmt.condition, symbols, loop);
+            if (!xr_is_truthy(condition)) {
+                break;  /* 条件为假，退出循环 */
+            }
+        }
+        
+        /* 执行循环体 */
+        result = xr_eval_block_internal(X, node->as.for_stmt.body, symbols, loop);
+        
+        /* 检查 break/continue */
+        if (loop->state == LOOP_BREAK) {
+            loop->state = LOOP_NONE;
+            break;
+        } else if (loop->state == LOOP_CONTINUE) {
+            loop->state = LOOP_NONE;
+            /* continue时要执行increment */
+        }
+        
+        /* 执行更新 */
+        if (node->as.for_stmt.increment != NULL) {
+            xr_eval_internal(X, node->as.for_stmt.increment, symbols, loop);
+        }
+    }
+    
+    loop->loop_depth--;  /* 退出循环 */
+    
+    /* 退出作用域 */
+    xsymboltable_end_scope(symbols);
+    
+    return result;
+}
+
+/*
+** break 语句求值
+*/
+XrValue xr_eval_break_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop) {
+    (void)symbols;  /* 未使用 */
+    
+    /* 检查是否在循环中 */
+    if (loop->loop_depth == 0) {
+        xr_runtime_error(X, node->line, "break 只能在循环内使用");
+    } else {
+        loop->state = LOOP_BREAK;
+    }
+    
+    XrValue null_value;
+    xr_setnull(&null_value);
+    return null_value;
+}
+
+/*
+** continue 语句求值
+*/
+XrValue xr_eval_continue_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop) {
+    (void)symbols;  /* 未使用 */
+    
+    /* 检查是否在循环中 */
+    if (loop->loop_depth == 0) {
+        xr_runtime_error(X, node->line, "continue 只能在循环内使用");
+    } else {
+        loop->state = LOOP_CONTINUE;
+    }
+    
+    XrValue null_value;
+    xr_setnull(&null_value);
+    return null_value;
 }

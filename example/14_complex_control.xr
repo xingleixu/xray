@@ -1,0 +1,42 @@
+// 综合示例：寻找质数
+
+print("Prime numbers less than 20:")
+
+for (let num = 2; num < 20; num = num + 1) {
+    let isPrime = true
+    
+    // 检查是否为质数
+    for (let i = 2; i * i <= num; i = i + 1) {
+        if (num % i == 0) {
+            isPrime = false
+            break
+        }
+    }
+    
+    if (isPrime) {
+        print(num)
+    }
+}
+
+// 斐波那契数列（前10项）
+print("Fibonacci sequence:")
+let a = 0
+let b = 1
+for (let i = 0; i < 10; i = i + 1) {
+    print(a)
+    let temp = a + b
+    a = b
+    b = temp
+}
+
+// 求最大公约数（GCD）
+let m = 48
+let n = 18
+print("GCD of 48 and 18:")
+while (n != 0) {
+    let temp = n
+    n = m % n
+    m = temp
+}
+print(m)
+

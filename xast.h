@@ -64,6 +64,13 @@ typedef enum {
     AST_VARIABLE,           /* 变量引用：x */
     AST_ASSIGNMENT,         /* 赋值：x = 10 */
     
+    /* 控制流节点 */
+    AST_IF_STMT,            /* if 语句：if (cond) {...} else {...} */
+    AST_WHILE_STMT,         /* while 循环：while (cond) {...} */
+    AST_FOR_STMT,           /* for 循环：for (init; cond; update) {...} */
+    AST_BREAK_STMT,         /* break 语句 */
+    AST_CONTINUE_STMT,      /* continue 语句 */
+    
     /* 程序节点 */
     AST_PROGRAM             /* 程序根节点 */
 } AstNodeType;
@@ -149,6 +156,52 @@ typedef struct {
 } AssignmentNode;
 
 /*
+** if 语句节点
+** if (condition) then_branch else else_branch
+*/
+typedef struct {
+    AstNode *condition;     /* 条件表达式 */
+    AstNode *then_branch;   /* then 分支（必须是 block） */
+    AstNode *else_branch;   /* else 分支（可选，可以是 block 或 if） */
+} IfStmtNode;
+
+/*
+** while 循环节点
+** while (condition) body
+*/
+typedef struct {
+    AstNode *condition;     /* 循环条件 */
+    AstNode *body;          /* 循环体（必须是 block） */
+} WhileStmtNode;
+
+/*
+** for 循环节点
+** for (initializer; condition; increment) body
+*/
+typedef struct {
+    AstNode *initializer;   /* 初始化（可选，可以是 VarDecl 或表达式） */
+    AstNode *condition;     /* 条件（可选） */
+    AstNode *increment;     /* 更新（可选） */
+    AstNode *body;          /* 循环体（必须是 block） */
+} ForStmtNode;
+
+/*
+** break 语句节点
+** break
+*/
+typedef struct {
+    int placeholder;        /* 占位符（break 不需要额外数据） */
+} BreakStmtNode;
+
+/*
+** continue 语句节点
+** continue
+*/
+typedef struct {
+    int placeholder;        /* 占位符（continue 不需要额外数据） */
+} ContinueStmtNode;
+
+/*
 ** AST 节点通用结构
 ** 所有节点类型的基础
 */
@@ -168,6 +221,11 @@ struct AstNode {
         VarDeclNode var_decl;       /* 变量声明 */
         VariableNode variable;      /* 变量引用 */
         AssignmentNode assignment;  /* 赋值 */
+        IfStmtNode if_stmt;         /* if 语句 */
+        WhileStmtNode while_stmt;   /* while 循环 */
+        ForStmtNode for_stmt;       /* for 循环 */
+        BreakStmtNode break_stmt;   /* break 语句 */
+        ContinueStmtNode continue_stmt; /* continue 语句 */
         ProgramNode program;        /* 程序 */
     } as;
 };
@@ -220,6 +278,25 @@ AstNode *xr_ast_variable(XrayState *X, const char *name, int line);
 /* 创建赋值节点 */
 AstNode *xr_ast_assignment(XrayState *X, const char *name, 
                            AstNode *value, int line);
+
+/* 创建 if 语句节点 */
+AstNode *xr_ast_if_stmt(XrayState *X, AstNode *condition, 
+                        AstNode *then_branch, AstNode *else_branch, int line);
+
+/* 创建 while 循环节点 */
+AstNode *xr_ast_while_stmt(XrayState *X, AstNode *condition, 
+                           AstNode *body, int line);
+
+/* 创建 for 循环节点 */
+AstNode *xr_ast_for_stmt(XrayState *X, AstNode *initializer, 
+                         AstNode *condition, AstNode *increment, 
+                         AstNode *body, int line);
+
+/* 创建 break 语句节点 */
+AstNode *xr_ast_break_stmt(XrayState *X, int line);
+
+/* 创建 continue 语句节点 */
+AstNode *xr_ast_continue_stmt(XrayState *X, int line);
 
 /* 释放 AST 节点 */
 void xr_ast_free(XrayState *X, AstNode *node);

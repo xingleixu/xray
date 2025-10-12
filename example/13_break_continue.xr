@@ -1,0 +1,46 @@
+// break 和 continue 示例
+
+// break 示例
+print("Break example:")
+for (let i = 0; i < 10; i = i + 1) {
+    if (i == 5) {
+        break
+    }
+    print(i)
+}
+
+// continue 示例
+print("Continue example (odd numbers):")
+for (let i = 0; i < 10; i = i + 1) {
+    if (i % 2 == 0) {
+        continue
+    }
+    print(i)
+}
+
+// 查找示例
+print("Search for 7:")
+let found = false
+for (let i = 0; i < 10; i = i + 1) {
+    if (i == 7) {
+        found = true
+        break
+    }
+}
+if (found) {
+    print("Found!")
+} else {
+    print("Not found")
+}
+
+// while 循环中的 break
+print("While break:")
+let count = 0
+while (true) {
+    print(count)
+    count = count + 1
+    if (count >= 3) {
+        break
+    }
+}
+

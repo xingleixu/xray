@@ -1,0 +1,32 @@
+// 循环示例
+
+// while 循环
+print("While loop:")
+let i = 0
+while (i < 5) {
+    print(i)
+    i = i + 1
+}
+
+// for 循环
+print("For loop:")
+for (let j = 0; j < 5; j = j + 1) {
+    print(j)
+}
+
+// 累加计算
+let sum = 0
+for (let k = 1; k <= 10; k = k + 1) {
+    sum = sum + k
+}
+print("Sum 1 to 10:")
+print(sum)
+
+// for 循环变量作用域
+let outer = 100
+for (let outer = 0; outer < 3; outer = outer + 1) {
+    print(outer)
+}
+print("Outer variable:")
+print(outer)
+

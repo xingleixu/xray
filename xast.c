@@ -279,6 +279,72 @@ AstNode *xr_ast_assignment(XrayState *X, const char *name,
     return node;
 }
 
+/* ========== 控制流节点创建 ========== */
+
+/*
+** 创建 if 语句节点
+** condition: 条件表达式
+** then_branch: then 分支（必须是 block）
+** else_branch: else 分支（可选，可以是 block 或 if）
+*/
+AstNode *xr_ast_if_stmt(XrayState *X, AstNode *condition, 
+                        AstNode *then_branch, AstNode *else_branch, int line) {
+    AstNode *node = alloc_node(X, AST_IF_STMT, line);
+    node->as.if_stmt.condition = condition;
+    node->as.if_stmt.then_branch = then_branch;
+    node->as.if_stmt.else_branch = else_branch;
+    return node;
+}
+
+/*
+** 创建 while 循环节点
+** condition: 循环条件
+** body: 循环体（必须是 block）
+*/
+AstNode *xr_ast_while_stmt(XrayState *X, AstNode *condition, 
+                           AstNode *body, int line) {
+    AstNode *node = alloc_node(X, AST_WHILE_STMT, line);
+    node->as.while_stmt.condition = condition;
+    node->as.while_stmt.body = body;
+    return node;
+}
+
+/*
+** 创建 for 循环节点
+** initializer: 初始化（可选）
+** condition: 条件（可选）
+** increment: 更新（可选）
+** body: 循环体（必须是 block）
+*/
+AstNode *xr_ast_for_stmt(XrayState *X, AstNode *initializer, 
+                         AstNode *condition, AstNode *increment, 
+                         AstNode *body, int line) {
+    AstNode *node = alloc_node(X, AST_FOR_STMT, line);
+    node->as.for_stmt.initializer = initializer;
+    node->as.for_stmt.condition = condition;
+    node->as.for_stmt.increment = increment;
+    node->as.for_stmt.body = body;
+    return node;
+}
+
+/*
+** 创建 break 语句节点
+*/
+AstNode *xr_ast_break_stmt(XrayState *X, int line) {
+    AstNode *node = alloc_node(X, AST_BREAK_STMT, line);
+    node->as.break_stmt.placeholder = 0;
+    return node;
+}
+
+/*
+** 创建 continue 语句节点
+*/
+AstNode *xr_ast_continue_stmt(XrayState *X, int line) {
+    AstNode *node = alloc_node(X, AST_CONTINUE_STMT, line);
+    node->as.continue_stmt.placeholder = 0;
+    return node;
+}
+
 /* ========== AST 释放 ========== */
 
 /*
@@ -374,6 +440,30 @@ void xr_ast_free(XrayState *X, AstNode *node) {
             xr_ast_free(X, node->as.assignment.value);
             break;
         
+        /* 控制流节点 */
+        case AST_IF_STMT:
+            xr_ast_free(X, node->as.if_stmt.condition);
+            xr_ast_free(X, node->as.if_stmt.then_branch);
+            xr_ast_free(X, node->as.if_stmt.else_branch);
+            break;
+        
+        case AST_WHILE_STMT:
+            xr_ast_free(X, node->as.while_stmt.condition);
+            xr_ast_free(X, node->as.while_stmt.body);
+            break;
+        
+        case AST_FOR_STMT:
+            xr_ast_free(X, node->as.for_stmt.initializer);
+            xr_ast_free(X, node->as.for_stmt.condition);
+            xr_ast_free(X, node->as.for_stmt.increment);
+            xr_ast_free(X, node->as.for_stmt.body);
+            break;
+        
+        case AST_BREAK_STMT:
+        case AST_CONTINUE_STMT:
+            /* 无需释放额外数据 */
+            break;
+        
         /* 程序节点 */
         case AST_PROGRAM:
             for (int i = 0; i < node->as.program.count; i++) {
@@ -426,6 +516,11 @@ const char *xr_ast_typename(AstNodeType type) {
         case AST_CONST_DECL:        return "ConstDecl";
         case AST_VARIABLE:          return "Variable";
         case AST_ASSIGNMENT:        return "Assignment";
+        case AST_IF_STMT:           return "IfStmt";
+        case AST_WHILE_STMT:        return "WhileStmt";
+        case AST_FOR_STMT:          return "ForStmt";
+        case AST_BREAK_STMT:        return "BreakStmt";
+        case AST_CONTINUE_STMT:     return "ContinueStmt";
         case AST_PROGRAM:           return "Program";
         default:                    return "Unknown";
     }
@@ -532,6 +627,46 @@ void xr_ast_print(AstNode *node, int indent) {
             printf("%*s  name: %s\n", indent * 2, "", node->as.assignment.name);
             printf("%*s  value:\n", indent * 2, "");
             xr_ast_print(node->as.assignment.value, indent + 2);
+            break;
+        
+        case AST_IF_STMT:
+            printf("%*s  condition:\n", indent * 2, "");
+            xr_ast_print(node->as.if_stmt.condition, indent + 2);
+            printf("%*s  then:\n", indent * 2, "");
+            xr_ast_print(node->as.if_stmt.then_branch, indent + 2);
+            if (node->as.if_stmt.else_branch != NULL) {
+                printf("%*s  else:\n", indent * 2, "");
+                xr_ast_print(node->as.if_stmt.else_branch, indent + 2);
+            }
+            break;
+        
+        case AST_WHILE_STMT:
+            printf("%*s  condition:\n", indent * 2, "");
+            xr_ast_print(node->as.while_stmt.condition, indent + 2);
+            printf("%*s  body:\n", indent * 2, "");
+            xr_ast_print(node->as.while_stmt.body, indent + 2);
+            break;
+        
+        case AST_FOR_STMT:
+            if (node->as.for_stmt.initializer != NULL) {
+                printf("%*s  initializer:\n", indent * 2, "");
+                xr_ast_print(node->as.for_stmt.initializer, indent + 2);
+            }
+            if (node->as.for_stmt.condition != NULL) {
+                printf("%*s  condition:\n", indent * 2, "");
+                xr_ast_print(node->as.for_stmt.condition, indent + 2);
+            }
+            if (node->as.for_stmt.increment != NULL) {
+                printf("%*s  increment:\n", indent * 2, "");
+                xr_ast_print(node->as.for_stmt.increment, indent + 2);
+            }
+            printf("%*s  body:\n", indent * 2, "");
+            xr_ast_print(node->as.for_stmt.body, indent + 2);
+            break;
+        
+        case AST_BREAK_STMT:
+        case AST_CONTINUE_STMT:
+            /* 无需打印额外信息 */
             break;
         
         case AST_PROGRAM:

@@ -1,0 +1,30 @@
+// 嵌套循环和条件
+
+// 乘法表（部分）
+print("Multiplication table:")
+for (let i = 1; i <= 3; i = i + 1) {
+    for (let j = 1; j <= 3; j = j + 1) {
+        print(i * j)
+    }
+}
+
+// 嵌套条件
+print("Even/Odd:")
+for (let i = 1; i <= 5; i = i + 1) {
+    if (i % 2 == 0) {
+        print("even")
+    } else {
+        print("odd")
+    }
+}
+
+// 三角形数字
+print("Triangle:")
+for (let i = 1; i <= 4; i = i + 1) {
+    let count = 0
+    while (count < i) {
+        print(i)
+        count = count + 1
+    }
+}
+

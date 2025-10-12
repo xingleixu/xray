@@ -105,6 +105,15 @@ AstNode *xr_parse_print_statement(Parser *parser);
 AstNode *xr_parse_block(Parser *parser);
 
 /*
+** 控制流语句解析函数
+*/
+AstNode *xr_parse_if_statement(Parser *parser);
+AstNode *xr_parse_while_statement(Parser *parser);
+AstNode *xr_parse_for_statement(Parser *parser);
+AstNode *xr_parse_break_statement(Parser *parser);
+AstNode *xr_parse_continue_statement(Parser *parser);
+
+/*
 ** 变量相关解析函数
 */
 AstNode *xr_parse_var_declaration(Parser *parser, int is_const);
