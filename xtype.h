@@ -31,7 +31,8 @@ typedef enum {
     TYPE_CLASS,      /* class Name */
     TYPE_ANY,        /* any（动态类型） */
     TYPE_UNION,      /* T1 | T2 */
-    TYPE_OPTIONAL    /* T?（语法糖：T | null） */
+    TYPE_OPTIONAL,   /* T?（语法糖：T | null） */
+    TYPE_PARAM       /* 类型参数（如泛型中的T） */
 } TypeKind;
 
 /*
@@ -75,6 +76,12 @@ typedef struct XrTypeInfo {
         struct {
             struct XrTypeInfo *base_type;
         } optional;
+        
+        /* 类型参数：T, U等（用于泛型） */
+        struct {
+            char *name;       /* 参数名称："T" */
+            int id;           /* 唯一标识符 */
+        } type_param;
     } as;
 } XrTypeInfo;
 
@@ -125,6 +132,94 @@ const char* xr_type_kind_name(TypeKind kind);
 
 /* 类型内存管理 */
 void xr_type_free(XrTypeInfo *type);
+
+/* ========== 类型推导 ========== */
+
+/* 前向声明AST节点 */
+struct AstNode;
+
+/* 从表达式推导类型 */
+XrTypeInfo* xr_infer_type_from_expr(XrayState *X, struct AstNode *expr);
+
+/* 从字面量推导类型 */
+XrTypeInfo* xr_infer_literal_type(XrayState *X, struct AstNode *literal);
+
+/* 从二元表达式推导类型 */
+XrTypeInfo* xr_infer_binary_type(XrayState *X, struct AstNode *binary);
+
+/* 从一元表达式推导类型 */
+XrTypeInfo* xr_infer_unary_type(XrayState *X, struct AstNode *unary);
+
+/* 类型提升（int + float → float） */
+XrTypeInfo* xr_type_promote(XrayState *X, XrTypeInfo *t1, XrTypeInfo *t2);
+
+/* 从函数体推导返回类型 */
+XrTypeInfo* xr_infer_function_return_type(XrayState *X, struct AstNode *func_body);
+
+/* 从语句中收集返回类型 */
+XrTypeInfo* xr_collect_return_types(XrayState *X, struct AstNode *stmt, XrTypeInfo *current_type);
+
+/* ========== 类型别名（Type Alias） ========== */
+
+/* 类型别名条目 */
+typedef struct {
+    char *name;             /* 别名名称 */
+    XrTypeInfo *type;       /* 目标类型 */
+} TypeAlias;
+
+/* 类型别名表 */
+typedef struct {
+    TypeAlias *entries;     /* 别名数组 */
+    int count;              /* 当前数量 */
+    int capacity;           /* 容量 */
+} TypeAliasTable;
+
+/* 注册类型别名 */
+void xr_register_type_alias(XrayState *X, const char *name, XrTypeInfo *type);
+
+/* 查找类型别名 */
+XrTypeInfo* xr_resolve_type_alias(XrayState *X, const char *name);
+
+/* 递归解析类型别名（处理别名的别名） */
+XrTypeInfo* xr_resolve_type_alias_recursive(XrayState *X, const char *name);
+
+/* 初始化类型别名表 */
+void xr_type_alias_init(XrayState *X);
+
+/* 释放类型别名表 */
+void xr_type_alias_free(XrayState *X);
+
+/* ========== 泛型类型参数 ========== */
+
+/* 创建类型参数（用于泛型）*/
+XrTypeInfo* xr_type_param(XrayState *X, const char *name, int id);
+
+/* 类型参数映射（用于泛型实例化） */
+typedef struct {
+    char *param_name;       /* 参数名："T" */
+    XrTypeInfo *actual_type;  /* 实际类型：int */
+} TypeParamBinding;
+
+typedef struct {
+    TypeParamBinding *bindings;
+    int count;
+    int capacity;
+} TypeParamMap;
+
+/* 创建类型参数映射 */
+TypeParamMap* xr_type_param_map_new(void);
+
+/* 释放类型参数映射 */
+void xr_type_param_map_free(TypeParamMap *map);
+
+/* 添加类型参数绑定 */
+void xr_type_param_map_add(TypeParamMap *map, const char *param_name, XrTypeInfo *actual_type);
+
+/* 查找类型参数绑定 */
+XrTypeInfo* xr_type_param_map_lookup(TypeParamMap *map, const char *param_name);
+
+/* 类型替换：将类型中的类型参数替换为实际类型 */
+XrTypeInfo* xr_type_substitute(XrayState *X, XrTypeInfo *type, TypeParamMap *map);
 
 /* ========== 类型系统初始化 ========== */
 

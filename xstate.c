@@ -16,6 +16,8 @@ XrayState *xray_newstate(void) {
         return NULL;
     }
     X->userdata = NULL;
+    X->call_stack = NULL;
+    X->type_aliases = NULL;  /* 类型别名表（延迟初始化） */
     return X;
 }
 

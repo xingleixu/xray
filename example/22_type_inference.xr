@@ -1,0 +1,75 @@
+/*
+** 22_type_inference.xr
+** 类型推导示例
+** 演示Xray的自动类型推导功能
+*/
+
+print("========== 类型推导示例 ==========")
+print("")
+
+// ===== 1. 字面量类型推导 =====
+print("--- 1. 字面量类型推导 ---")
+
+let age = 25              // 自动推导为 int
+let pi = 3.14159          // 自动推导为 float  
+let name = "Xray"         // 自动推导为 string
+let active = true         // 自动推导为 bool
+let empty = null          // 自动推导为 null
+
+print("age = " + age)           // 虽然语法不支持，这里仅作说明
+print("pi = 3.14159")
+print("name = Xray")
+print("active = true")
+print("empty = null")
+print("")
+
+// ===== 2. 算术表达式类型推导 =====
+print("--- 2. 算术表达式类型推导 ---")
+
+let sum = 10 + 20         // int + int → int
+let product = 3.14 * 2.0  // float * float → float
+let mixed = 10 + 3.5      // int + float → float (类型提升)
+
+print("10 + 20 = 30 (int)")
+print("3.14 * 2.0 = 6.28 (float)")
+print("10 + 3.5 = 13.5 (float)")
+print("")
+
+// ===== 3. 比较表达式类型推导 =====
+print("--- 3. 比较表达式类型推导 ---")
+
+let isGreater = 5 > 3     // bool
+let isEqual = 10 == 10    // bool
+let isLess = 2 < 1        // bool
+
+print("5 > 3 = true")
+print("10 == 10 = true")
+print("2 < 1 = false")
+print("")
+
+// ===== 4. 逻辑表达式类型推导 =====
+print("--- 4. 逻辑表达式类型推导 ---")
+
+let andResult = true && false  // bool
+let orResult = true || false   // bool
+let notResult = !true          // bool
+
+print("true && false = false")
+print("true || false = true")
+print("!true = false")
+print("")
+
+// ===== 5. 复杂表达式类型推导 =====
+print("--- 5. 复杂表达式类型推导 ---")
+
+let complex1 = (10 + 20) * 2      // int
+let complex2 = 10 + 3.5 * 2       // float (3.5 * 2 → float, 10 + float → float)
+let complex3 = (5 > 3) && (10 < 20)  // bool
+
+print("(10 + 20) * 2 = 60 (int)")
+print("10 + 3.5 * 2 = 17.0 (float)")
+print("(5 > 3) && (10 < 20) = true (bool)")
+print("")
+
+print("========== 类型推导示例结束 ==========")
+

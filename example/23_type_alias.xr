@@ -1,0 +1,144 @@
+/*
+** 23_type_alias.xr
+** 类型别名示例
+** 演示Xray的类型别名功能（type关键字）
+*/
+
+print("========== 类型别名示例 ==========")
+print("")
+
+// ===== 1. 基本类型别名 =====
+print("--- 1. 基本类型别名 ---")
+
+// 为基本类型创建别名，提高代码可读性
+type UserId = int
+type UserName = string
+type Score = float
+type Flag = bool
+
+// 使用类型别名声明变量
+let id: UserId = 12345
+let name: UserName = "Alice"
+let score: Score = 95.5
+let active: Flag = true
+
+print("User ID: 12345")
+print("User Name: Alice")
+print("Score: 95.5")
+print("Active: true")
+print("")
+
+// ===== 2. 复合类型别名 =====
+print("--- 2. 复合类型别名 ---")
+
+// 数组类型别名
+type IntArray = int[]
+type StringList = string[]
+type Matrix = int[][]
+
+// let numbers: IntArray = [1, 2, 3, 4, 5]
+// let names: StringList = ["Alice", "Bob", "Charlie"]
+// let grid: Matrix = [[1, 2], [3, 4]]
+
+print("IntArray: 整数数组类型")
+print("StringList: 字符串列表类型")
+print("Matrix: 二维整数矩阵类型")
+print("")
+
+// ===== 3. Map类型别名 =====
+print("--- 3. Map类型别名 ---")
+
+type UserMap = Map<int, string>
+type ConfigMap = Map<string, any>
+type ScoreMap = Map<string, float>
+
+// let users: UserMap = { 1: "Alice", 2: "Bob" }
+// let config: ConfigMap = { host: "localhost", port: 8080 }
+
+print("UserMap: int到string的映射")
+print("ConfigMap: string到any的配置映射")
+print("ScoreMap: string到float的分数映射")
+print("")
+
+// ===== 4. 联合类型别名 =====
+print("--- 4. 联合类型别名 ---")
+
+type NumOrStr = int | string
+type OptionalInt = int | null
+type Result = int | string | null
+
+let value1: NumOrStr = 42
+// value1 = "hello"  // OK，可以赋值为string
+
+let maybe: OptionalInt = 100
+// maybe = null       // OK，可以为null
+
+print("NumOrStr: 可以是int或string")
+print("OptionalInt: 可以是int或null")
+print("Result: 可以是int、string或null")
+print("")
+
+// ===== 5. 类型别名的别名 =====
+print("--- 5. 类型别名的别名 ---")
+
+type Id = int
+type UserId = Id        // 别名的别名
+type AdminId = UserId   // 三层别名
+
+let user_id: UserId = 1001
+let admin_id: AdminId = 5001
+
+print("Id → int")
+print("UserId → Id → int")
+print("AdminId → UserId → Id → int")
+print("user_id = 1001")
+print("admin_id = 5001")
+print("")
+
+// ===== 6. 实际应用场景 =====
+print("--- 6. 实际应用场景 ---")
+
+// 定义领域特定类型
+type Coordinate = float
+type Distance = float
+type Timestamp = int
+type Email = string
+type PhoneNumber = string
+
+// 函数参数更有语义
+// function calculateDistance(x1: Coordinate, y1: Coordinate, 
+//                           x2: Coordinate, y2: Coordinate): Distance {
+//     let dx = x2 - x1
+//     let dy = y2 - y1
+//     return sqrt(dx * dx + dy * dy)
+// }
+
+print("Coordinate: 坐标值（float）")
+print("Distance: 距离值（float）")
+print("Timestamp: 时间戳（int）")
+print("Email: 邮箱地址（string）")
+print("PhoneNumber: 电话号码（string）")
+print("")
+
+print("========== 类型别名示例结束 ==========")
+
+/*
+** 类型别名的优势：
+** 
+** 1. 提高代码可读性
+**    - UserId 比 int 更有语义
+**    - Email 比 string 更明确
+** 
+** 2. 便于重构
+**    - 只需修改别名定义
+**    - 所有使用处自动更新
+** 
+** 3. 类型安全
+**    - 虽然UserId和int兼容
+**    - 但IDE可以提供更好的提示
+** 
+** 4. 文档化代码
+**    - 类型别名本身就是文档
+**    - 增强代码的自解释性
+*/
+

@@ -39,6 +39,7 @@ typedef struct {
 struct XrayState {
     void *userdata;                    /* 用户数据指针 */
     CallStack *call_stack;             /* 调用栈 */
+    void *type_aliases;                /* 类型别名表（TypeAliasTable*，避免循环依赖） */
 };
 
 /* ========== 调用栈操作函数 ========== */
