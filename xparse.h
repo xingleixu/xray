@@ -154,5 +154,21 @@ AstNode *xr_parse_unary(Parser *parser);        /* 一元运算符：-expr, !exp
 */
 AstNode *xr_parse_binary(Parser *parser, AstNode *left);    /* 二元运算：left op right */
 
+/* ========== 类型解析函数（新增）========== */
+
+/*
+** 解析类型注解
+** 如：int, float, string, int[], int | string, int?
+*/
+XrTypeInfo* xr_parse_type(Parser *parser);
+
+/* ========== 辅助函数（供内部使用）========== */
+
+/* Token操作（简化名称供内部使用） */
+#define match(p, type) xr_parser_match(p, type)
+#define check(p, type) xr_parser_check(p, type)
+#define consume(p, type, msg) xr_parser_consume(p, type, msg)
+#define error(p, msg) xr_parser_error(p, msg)
+
 #endif /* xparse_h */
 

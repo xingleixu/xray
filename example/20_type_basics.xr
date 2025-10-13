@@ -1,0 +1,22 @@
+// 测试基本类型注解
+// 注意：本阶段只实现了类型解析，类型检查在后续步骤中完成
+
+// 基本类型变量（暂时无类型注解，待集成）
+let age = 25
+let pi = 3.14
+let name = "Xray"
+let flag = true
+
+print(age)
+print(pi)
+print(name)
+print(flag)
+
+// 简单函数
+function add(a, b) {
+    return a + b
+}
+
+print(add(10, 20))
+print(add(3.14, 2.86))
+

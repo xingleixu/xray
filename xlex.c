@@ -127,7 +127,15 @@ static TokenType check_keyword(Scanner *scanner, int start, int length,
 /* 识别标识符类型（关键字或普通标识符） */
 static TokenType identifier_type(Scanner *scanner) {
     switch (scanner->start[0]) {
-        case 'b': return check_keyword(scanner, 1, 4, "reak", TK_BREAK);
+        case 'a': return check_keyword(scanner, 1, 2, "ny", TK_ANY);
+        case 'b':
+            if (scanner->current - scanner->start > 1) {
+                switch (scanner->start[1]) {
+                    case 'o': return check_keyword(scanner, 2, 2, "ol", TK_BOOL);
+                    case 'r': return check_keyword(scanner, 2, 3, "eak", TK_BREAK);
+                }
+            }
+            break;
         case 'c':
             if (scanner->current - scanner->start > 1) {
                 switch (scanner->start[1]) {
@@ -150,12 +158,20 @@ static TokenType identifier_type(Scanner *scanner) {
             if (scanner->current - scanner->start > 1) {
                 switch (scanner->start[1]) {
                     case 'a': return check_keyword(scanner, 2, 3, "lse", TK_FALSE);
+                    case 'l': return check_keyword(scanner, 2, 3, "oat", TK_TYPE_FLOAT);
                     case 'o': return check_keyword(scanner, 2, 1, "r", TK_FOR);
                     case 'u': return check_keyword(scanner, 2, 6, "nction", TK_FUNCTION);
                 }
             }
             break;
-        case 'i': return check_keyword(scanner, 1, 1, "f", TK_IF);
+        case 'i':
+            if (scanner->current - scanner->start > 1) {
+                switch (scanner->start[1]) {
+                    case 'f': return TK_IF;  /* if */
+                    case 'n': return check_keyword(scanner, 2, 1, "t", TK_TYPE_INT);  /* int */
+                }
+            }
+            break;
         case 'l': return check_keyword(scanner, 1, 2, "et", TK_LET);
         case 'n':
             if (scanner->current - scanner->start > 1) {
@@ -166,6 +182,7 @@ static TokenType identifier_type(Scanner *scanner) {
             }
             break;
         case 'r': return check_keyword(scanner, 1, 5, "eturn", TK_RETURN);
+        case 's': return check_keyword(scanner, 1, 5, "tring", TK_TYPE_STRING);
         case 't':
             if (scanner->current - scanner->start > 1) {
                 switch (scanner->start[1]) {
@@ -174,6 +191,7 @@ static TokenType identifier_type(Scanner *scanner) {
                 }
             }
             break;
+        case 'v': return check_keyword(scanner, 1, 3, "oid", TK_VOID);
         case 'w': return check_keyword(scanner, 1, 4, "hile", TK_WHILE);
     }
     return TK_NAME;
@@ -278,7 +296,12 @@ Token xr_scanner_scan(Scanner *scanner) {
         case '!':
             return make_token(scanner, match(scanner, '=') ? TK_NE : TK_NOT);
         case '=':
-            return make_token(scanner, match(scanner, '=') ? TK_EQ : TK_ASSIGN);
+            if (match(scanner, '=')) {
+                return make_token(scanner, TK_EQ);  /* == */
+            } else if (match(scanner, '>')) {
+                return make_token(scanner, TK_ARROW);  /* => */
+            }
+            return make_token(scanner, TK_ASSIGN);  /* = */
         case '<':
             return make_token(scanner, match(scanner, '=') ? TK_LE : TK_LT);
         case '>':
@@ -287,8 +310,12 @@ Token xr_scanner_scan(Scanner *scanner) {
             if (match(scanner, '&')) return make_token(scanner, TK_AND);
             break;
         case '|':
-            if (match(scanner, '|')) return make_token(scanner, TK_OR);
-            break;
+            if (match(scanner, '|')) {
+                return make_token(scanner, TK_OR);  /* || */
+            }
+            return make_token(scanner, TK_PIPE);  /* | (联合类型) */
+        case '?':
+            return make_token(scanner, TK_QUESTION);  /* ? (可选类型) */
         case '"':
             return string(scanner);
     }
@@ -342,6 +369,18 @@ const char *xr_token_name(TokenType type) {
         case TK_FUNCTION: return "function";
         case TK_NEW: return "new";
         case TK_THIS: return "this";
+        /* 类型关键字 */
+        case TK_VOID: return "void";
+        case TK_BOOL: return "bool";
+        case TK_TYPE_INT: return "int";
+        case TK_TYPE_FLOAT: return "float";
+        case TK_TYPE_STRING: return "string";
+        case TK_ANY: return "any";
+        /* 类型运算符 */
+        case TK_QUESTION: return "?";
+        case TK_PIPE: return "|";
+        case TK_ARROW: return "=>";
+        /* 字面量 */
         case TK_INT: return "INT";
         case TK_FLOAT: return "FLOAT";
         case TK_STRING: return "STRING";

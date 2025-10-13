@@ -38,15 +38,13 @@ XrValue xr_eval(XrayState *X, AstNode *node) {
     XSymbolTable *symbols = xsymboltable_new();
     if (!symbols) {
         xr_runtime_error(X, 0, "内存分配失败");
-        XrValue error_value;
-        xr_setnull(&error_value);
-        return error_value;
+        return xr_null();  /* 新API */
     }
     
     /* 初始化循环控制和返回控制 */
     LoopControl loop = {LOOP_NONE, 0};
     ReturnControl ret = {0, {XR_TNULL}};
-    xr_setnull(&ret.return_value);
+    ret.return_value = xr_null();  /* 新API */
     
     /* 调用内部求值函数 */
     XrValue result = xr_eval_internal(X, node, symbols, &loop, &ret);
@@ -64,15 +62,13 @@ XrValue xr_eval(XrayState *X, AstNode *node) {
 XrValue xr_eval_with_symbols(XrayState *X, AstNode *node, XSymbolTable *symbols) {
     if (!symbols) {
         xr_runtime_error(X, 0, "符号表为空");
-        XrValue error_value;
-        xr_setnull(&error_value);
-        return error_value;
+        return xr_null();  /* 新API */
     }
     
     /* 初始化循环控制和返回控制 */
     LoopControl loop = {LOOP_NONE, 0};
     ReturnControl ret = {0, {XR_TNULL}};
-    xr_setnull(&ret.return_value);
+    ret.return_value = xr_null();  /* 新API */
     
     return xr_eval_internal(X, node, symbols, &loop, &ret);
 }
@@ -83,9 +79,7 @@ XrValue xr_eval_with_symbols(XrayState *X, AstNode *node, XSymbolTable *symbols)
 */
 static XrValue xr_eval_internal(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret) {
     if (node == NULL) {
-        XrValue null_value;
-        xr_setnull(&null_value);
-        return null_value;
+        return xr_null();  /* 新API */
     }
     
     switch (node->type) {
@@ -175,9 +169,9 @@ static XrValue xr_eval_internal(XrayState *X, AstNode *node, XSymbolTable *symbo
         
         default:
             xr_runtime_error(X, node->line, "未知的 AST 节点类型: %d", node->type);
-            XrValue error_value;
-            xr_setnull(&error_value);
-            return error_value;
+            
+            return xr_null();  /* 新API */
+
     }
 }
 
@@ -223,9 +217,9 @@ static XrValue xr_eval_binary(XrayState *X, AstNode *node, XSymbolTable *symbols
         
         default:
             xr_runtime_error(X, node->line, "未知的二元运算符");
-            XrValue error_value;
-            xr_setnull(&error_value);
-            return error_value;
+            
+            return xr_null();  /* 新API */
+
     }
 }
 
@@ -243,9 +237,9 @@ static XrValue xr_eval_unary(XrayState *X, AstNode *node, XSymbolTable *symbols,
         
         default:
             xr_runtime_error(X, node->line, "未知的一元运算符");
-            XrValue error_value;
-            xr_setnull(&error_value);
-            return error_value;
+            
+            return xr_null();  /* 新API */
+
     }
 }
 
@@ -274,17 +268,17 @@ static XrValue xr_eval_print_stmt(XrayState *X, AstNode *node, XSymbolTable *sym
     printf("%s\n", str);
     
     /* 返回 null */
-    XrValue null_value;
-    xr_setnull(&null_value);
-    return null_value;
+    
+        return xr_null();  /* 新API */
+
 }
 
 /*
 ** 程序求值（执行多个语句）
 */
 static XrValue xr_eval_program(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret) {
-    XrValue last_value;
-    xr_setnull(&last_value);
+    XrValue last_value = xr_null();  /* 新API */
+
     
     /* 执行所有语句，返回最后一个语句的值 */
     for (int i = 0; i < node->as.program.count; i++) {
@@ -306,13 +300,13 @@ static XrValue xr_eval_program(XrayState *X, AstNode *node, XSymbolTable *symbol
 ** 支持：数字 + 数字、字符串 + 字符串
 */
 XrValue xr_eval_add(XrayState *X, XrValue left, XrValue right) {
-    XrValue result;
+    XrValue result = xr_null();  /* 新API - 默认初始化为null */
     
     /* 字符串拼接 */
-    if (xr_isstring(&left) && xr_isstring(&right)) {
+    if (xr_isstring(left) && xr_isstring(right)) {
         /* 简单实现：字符串拼接 */
-        const char *left_str = (const char *)xr_toobj(&left);
-        const char *right_str = (const char *)xr_toobj(&right);
+        const char *left_str = (const char *)xr_toobj(left);
+        const char *right_str = (const char *)xr_toobj(right);
         
         int left_len = strlen(left_str);
         int right_len = strlen(right_str);
@@ -332,16 +326,16 @@ XrValue xr_eval_add(XrayState *X, XrValue left, XrValue right) {
         xr_Number right_num = xr_to_number(X, right);
         
         /* 如果两个都是整数，结果也是整数 */
-        if (xr_isint(&left) && xr_isint(&right)) {
-            xr_setint(&result, (xr_Integer)(left_num + right_num));
+        if (xr_isint(left) && xr_isint(right)) {
+            result = xr_int((xr_Integer)(left_num + right_num));  /* 新API */
         } else {
-            xr_setfloat(&result, left_num + right_num);
+            result = xr_float(left_num + right_num);  /* 新API */
         }
         return result;
     }
     
     xr_runtime_error(X, 0, "加法运算的操作数必须都是数字或都是字符串");
-    xr_setnull(&result);
+
     return result;
 }
 
@@ -349,21 +343,21 @@ XrValue xr_eval_add(XrayState *X, XrValue left, XrValue right) {
 ** 减法运算
 */
 XrValue xr_eval_subtract(XrayState *X, XrValue left, XrValue right) {
-    XrValue result;
+    XrValue result = xr_null();  /* 新API - 默认初始化为null */
     
     if (!xr_is_number(left) || !xr_is_number(right)) {
         xr_runtime_error(X, 0, "减法运算的操作数必须是数字");
-        xr_setnull(&result);
+
         return result;
     }
     
     xr_Number left_num = xr_to_number(X, left);
     xr_Number right_num = xr_to_number(X, right);
     
-    if (xr_isint(&left) && xr_isint(&right)) {
-        xr_setint(&result, (xr_Integer)(left_num - right_num));
+    if (xr_isint(left) && xr_isint(right)) {
+        result = xr_int((xr_Integer)(left_num - right_num));  /* 新API */
     } else {
-        xr_setfloat(&result, left_num - right_num);
+        result = xr_float(left_num - right_num);  /* 新API */
     }
     
     return result;
@@ -373,21 +367,21 @@ XrValue xr_eval_subtract(XrayState *X, XrValue left, XrValue right) {
 ** 乘法运算
 */
 XrValue xr_eval_multiply(XrayState *X, XrValue left, XrValue right) {
-    XrValue result;
+    XrValue result = xr_null();  /* 新API - 默认初始化为null */
     
     if (!xr_is_number(left) || !xr_is_number(right)) {
         xr_runtime_error(X, 0, "乘法运算的操作数必须是数字");
-        xr_setnull(&result);
+
         return result;
     }
     
     xr_Number left_num = xr_to_number(X, left);
     xr_Number right_num = xr_to_number(X, right);
     
-    if (xr_isint(&left) && xr_isint(&right)) {
-        xr_setint(&result, (xr_Integer)(left_num * right_num));
+    if (xr_isint(left) && xr_isint(right)) {
+        result = xr_int((xr_Integer)(left_num * right_num));  /* 新API */
     } else {
-        xr_setfloat(&result, left_num * right_num);
+        result = xr_float(left_num * right_num);  /* 新API */
     }
     
     return result;
@@ -397,11 +391,11 @@ XrValue xr_eval_multiply(XrayState *X, XrValue left, XrValue right) {
 ** 除法运算
 */
 XrValue xr_eval_divide(XrayState *X, XrValue left, XrValue right) {
-    XrValue result;
+    XrValue result = xr_null();  /* 新API - 默认初始化为null */
     
     if (!xr_is_number(left) || !xr_is_number(right)) {
         xr_runtime_error(X, 0, "除法运算的操作数必须是数字");
-        xr_setnull(&result);
+
         return result;
     }
     
@@ -410,12 +404,12 @@ XrValue xr_eval_divide(XrayState *X, XrValue left, XrValue right) {
     
     if (right_num == 0.0) {
         xr_runtime_error(X, 0, "除零错误");
-        xr_setnull(&result);
+
         return result;
     }
     
     /* 除法结果总是浮点数 */
-    xr_setfloat(&result, left_num / right_num);
+    result = xr_float(left_num / right_num);  /* 新API */
     return result;
 }
 
@@ -423,11 +417,11 @@ XrValue xr_eval_divide(XrayState *X, XrValue left, XrValue right) {
 ** 取模运算
 */
 XrValue xr_eval_modulo(XrayState *X, XrValue left, XrValue right) {
-    XrValue result;
+    XrValue result = xr_null();  /* 新API - 默认初始化为null */
     
     if (!xr_is_number(left) || !xr_is_number(right)) {
         xr_runtime_error(X, 0, "取模运算的操作数必须是数字");
-        xr_setnull(&result);
+
         return result;
     }
     
@@ -436,14 +430,14 @@ XrValue xr_eval_modulo(XrayState *X, XrValue left, XrValue right) {
     
     if (right_num == 0.0) {
         xr_runtime_error(X, 0, "取模运算的除数不能为零");
-        xr_setnull(&result);
+
         return result;
     }
     
-    if (xr_isint(&left) && xr_isint(&right)) {
-        xr_setint(&result, xr_toint(&left) % xr_toint(&right));
+    if (xr_isint(left) && xr_isint(right)) {
+        result = xr_int(xr_toint(left) % xr_toint(right));  /* 新API */
     } else {
-        xr_setfloat(&result, fmod(left_num, right_num));
+        result = xr_float(fmod(left_num, right_num));  /* 新API */
     }
     
     return result;
@@ -455,8 +449,8 @@ XrValue xr_eval_modulo(XrayState *X, XrValue left, XrValue right) {
 ** 相等比较
 */
 XrValue xr_eval_equal(XrayState *X, XrValue left, XrValue right) {
-    XrValue result;
-    xr_setbool(&result, xr_values_equal(left, right));
+    XrValue result = xr_null();  /* 新API - 默认初始化为null */
+    result = xr_bool(xr_values_equal(left, right));  /* 新API */
     return result;
 }
 
@@ -464,8 +458,8 @@ XrValue xr_eval_equal(XrayState *X, XrValue left, XrValue right) {
 ** 不等比较
 */
 XrValue xr_eval_not_equal(XrayState *X, XrValue left, XrValue right) {
-    XrValue result;
-    xr_setbool(&result, !xr_values_equal(left, right));
+    XrValue result = xr_null();  /* 新API - 默认初始化为null */
+    result = xr_bool(!xr_values_equal(left, right));  /* 新API */
     return result;
 }
 
@@ -473,18 +467,18 @@ XrValue xr_eval_not_equal(XrayState *X, XrValue left, XrValue right) {
 ** 小于比较
 */
 XrValue xr_eval_less(XrayState *X, XrValue left, XrValue right) {
-    XrValue result;
+    XrValue result = xr_null();  /* 新API - 默认初始化为null */
     
     if (!xr_is_number(left) || !xr_is_number(right)) {
         xr_runtime_error(X, 0, "比较运算的操作数必须是数字");
-        xr_setnull(&result);
+
         return result;
     }
     
     xr_Number left_num = xr_to_number(X, left);
     xr_Number right_num = xr_to_number(X, right);
     
-    xr_setbool(&result, left_num < right_num);
+    result = xr_bool(left_num < right_num);  /* 新API */
     return result;
 }
 
@@ -492,18 +486,18 @@ XrValue xr_eval_less(XrayState *X, XrValue left, XrValue right) {
 ** 小于等于比较
 */
 XrValue xr_eval_less_equal(XrayState *X, XrValue left, XrValue right) {
-    XrValue result;
+    XrValue result = xr_null();  /* 新API - 默认初始化为null */
     
     if (!xr_is_number(left) || !xr_is_number(right)) {
         xr_runtime_error(X, 0, "比较运算的操作数必须是数字");
-        xr_setnull(&result);
+
         return result;
     }
     
     xr_Number left_num = xr_to_number(X, left);
     xr_Number right_num = xr_to_number(X, right);
     
-    xr_setbool(&result, left_num <= right_num);
+    result = xr_bool(left_num <= right_num);  /* 新API */
     return result;
 }
 
@@ -511,18 +505,18 @@ XrValue xr_eval_less_equal(XrayState *X, XrValue left, XrValue right) {
 ** 大于比较
 */
 XrValue xr_eval_greater(XrayState *X, XrValue left, XrValue right) {
-    XrValue result;
+    XrValue result = xr_null();  /* 新API - 默认初始化为null */
     
     if (!xr_is_number(left) || !xr_is_number(right)) {
         xr_runtime_error(X, 0, "比较运算的操作数必须是数字");
-        xr_setnull(&result);
+
         return result;
     }
     
     xr_Number left_num = xr_to_number(X, left);
     xr_Number right_num = xr_to_number(X, right);
     
-    xr_setbool(&result, left_num > right_num);
+    result = xr_bool(left_num > right_num);  /* 新API */
     return result;
 }
 
@@ -530,18 +524,18 @@ XrValue xr_eval_greater(XrayState *X, XrValue left, XrValue right) {
 ** 大于等于比较
 */
 XrValue xr_eval_greater_equal(XrayState *X, XrValue left, XrValue right) {
-    XrValue result;
+    XrValue result = xr_null();  /* 新API - 默认初始化为null */
     
     if (!xr_is_number(left) || !xr_is_number(right)) {
         xr_runtime_error(X, 0, "比较运算的操作数必须是数字");
-        xr_setnull(&result);
+
         return result;
     }
     
     xr_Number left_num = xr_to_number(X, left);
     xr_Number right_num = xr_to_number(X, right);
     
-    xr_setbool(&result, left_num >= right_num);
+    result = xr_bool(left_num >= right_num);  /* 新API */
     return result;
 }
 
@@ -581,8 +575,8 @@ static XrValue xr_eval_logical_or(XrayState *X, AstNode *left_node, AstNode *rig
 ** 逻辑非
 */
 XrValue xr_eval_logical_not(XrayState *X, XrValue operand) {
-    XrValue result;
-    xr_setbool(&result, !xr_is_truthy(operand));
+    XrValue result = xr_null();  /* 新API - 默认初始化为null */
+    result = xr_bool(!xr_is_truthy(operand));  /* 新API */
     return result;
 }
 
@@ -590,18 +584,18 @@ XrValue xr_eval_logical_not(XrayState *X, XrValue operand) {
 ** 取负运算
 */
 XrValue xr_eval_negate(XrayState *X, XrValue operand) {
-    XrValue result;
+    XrValue result = xr_null();  /* 新API - 默认初始化为null */
     
     if (!xr_is_number(operand)) {
         xr_runtime_error(X, 0, "取负运算的操作数必须是数字");
-        xr_setnull(&result);
+
         return result;
     }
     
-    if (xr_isint(&operand)) {
-        xr_setint(&result, -xr_toint(&operand));
+    if (xr_isint(operand)) {
+        result = xr_int(-xr_toint(operand));  /* 新API */
     } else {
-        xr_setfloat(&result, -xr_tofloat(&operand));
+        result = xr_float(-xr_tofloat(operand));  /* 新API */
     }
     
     return result;
@@ -613,7 +607,7 @@ XrValue xr_eval_negate(XrayState *X, XrValue operand) {
 ** 检查值是否为数字
 */
 int xr_is_number(XrValue value) {
-    return xr_isint(&value) || xr_isfloat(&value);
+    return xr_isint(value) || xr_isfloat(value);
 }
 
 /*
@@ -621,8 +615,8 @@ int xr_is_number(XrValue value) {
 ** 规则：null 和 false 为假，其他都为真
 */
 int xr_is_truthy(XrValue value) {
-    if (xr_isnull(&value)) return 0;
-    if (xr_isbool(&value)) return xr_tobool(&value);
+    if (xr_isnull(value)) return 0;
+    if (xr_isbool(value)) return xr_tobool(value);
     return 1;  /* 其他值都为真 */
 }
 
@@ -630,10 +624,10 @@ int xr_is_truthy(XrValue value) {
 ** 将值转换为数字
 */
 xr_Number xr_to_number(XrayState *X, XrValue value) {
-    if (xr_isint(&value)) {
-        return (xr_Number)xr_toint(&value);
-    } else if (xr_isfloat(&value)) {
-        return xr_tofloat(&value);
+    if (xr_isint(value)) {
+        return (xr_Number)xr_toint(value);
+    } else if (xr_isfloat(value)) {
+        return xr_tofloat(value);
     } else {
         xr_runtime_error(X, 0, "无法将非数字值转换为数字");
         return 0.0;
@@ -647,9 +641,9 @@ int xr_values_equal(XrValue a, XrValue b) {
     /* 类型不同，不相等 */
     if (a.type != b.type) {
         /* 特殊情况：整数和浮点数可以比较 */
-        if ((xr_isint(&a) && xr_isfloat(&b)) || (xr_isfloat(&a) && xr_isint(&b))) {
-            xr_Number a_num = xr_isint(&a) ? (xr_Number)xr_toint(&a) : xr_tofloat(&a);
-            xr_Number b_num = xr_isint(&b) ? (xr_Number)xr_toint(&b) : xr_tofloat(&b);
+        if ((xr_isint(a) && xr_isfloat(b)) || (xr_isfloat(a) && xr_isint(b))) {
+            xr_Number a_num = xr_isint(a) ? (xr_Number)xr_toint(a) : xr_tofloat(a);
+            xr_Number b_num = xr_isint(b) ? (xr_Number)xr_toint(b) : xr_tofloat(b);
             return a_num == b_num;
         }
         return 0;
@@ -658,11 +652,11 @@ int xr_values_equal(XrValue a, XrValue b) {
     /* 根据类型比较 */
     switch (a.type) {
         case XR_TNULL:   return 1;  /* null == null */
-        case XR_TBOOL:   return xr_tobool(&a) == xr_tobool(&b);
-        case XR_TINT:    return xr_toint(&a) == xr_toint(&b);
-        case XR_TFLOAT:  return xr_tofloat(&a) == xr_tofloat(&b);
+        case XR_TBOOL:   return xr_tobool(a) == xr_tobool(b);
+        case XR_TINT:    return xr_toint(a) == xr_toint(b);
+        case XR_TFLOAT:  return xr_tofloat(a) == xr_tofloat(b);
         case XR_TSTRING:
-            return strcmp((const char *)xr_toobj(&a), (const char *)xr_toobj(&b)) == 0;
+            return strcmp((const char *)xr_toobj(a), (const char *)xr_toobj(b)) == 0;
         default:         return 0;
     }
 }
@@ -677,15 +671,15 @@ const char *xr_value_to_string(XrayState *X, XrValue value) {
         case XR_TNULL:
             return "null";
         case XR_TBOOL:
-            return xr_tobool(&value) ? "true" : "false";
+            return xr_tobool(value) ? "true" : "false";
         case XR_TINT:
-            snprintf(buffer, sizeof(buffer), "%lld", (long long)xr_toint(&value));
+            snprintf(buffer, sizeof(buffer), "%lld", (long long)xr_toint(value));
             return buffer;
         case XR_TFLOAT:
-            snprintf(buffer, sizeof(buffer), "%g", xr_tofloat(&value));
+            snprintf(buffer, sizeof(buffer), "%g", xr_tofloat(value));
             return buffer;
         case XR_TSTRING:
-            return (const char *)xr_toobj(&value);
+            return (const char *)xr_toobj(value);
         default:
             return "<unknown>";
     }
@@ -726,7 +720,7 @@ XrValue xr_eval_var_decl(XrayState *X, AstNode *node, XSymbolTable *symbols, Loo
         init_value = xr_eval_internal(X, node->as.var_decl.initializer, symbols, loop, ret);
     } else {
         /* 无初始化表达式，设为 null */
-        xr_setnull(&init_value);
+        init_value = xr_null();  /* 新API */
     }
     
     /* 在当前作用域定义变量 */
@@ -735,9 +729,9 @@ XrValue xr_eval_var_decl(XrayState *X, AstNode *node, XSymbolTable *symbols, Loo
     }
     
     /* 返回 null */
-    XrValue null_value;
-    xr_setnull(&null_value);
-    return null_value;
+    
+        return xr_null();  /* 新API */
+
 }
 
 /*
@@ -750,7 +744,7 @@ XrValue xr_eval_variable(XrayState *X, AstNode *node, XSymbolTable *symbols) {
     XrValue value;
     if (!xsymboltable_get(symbols, name, &value)) {
         xr_runtime_error(X, node->line, "未定义的变量 '%s'", name);
-        xr_setnull(&value);
+        return xr_null();  /* 新API */
     }
     
     return value;
@@ -774,7 +768,7 @@ XrValue xr_eval_assignment(XrayState *X, AstNode *node, XSymbolTable *symbols, L
         } else if (var->is_const) {
             xr_runtime_error(X, node->line, "不能修改常量 '%s'", name);
         }
-        xr_setnull(&value);
+        return xr_null();  /* 新API */
     }
     
     /* 赋值表达式返回赋的值 */
@@ -791,8 +785,8 @@ static XrValue xr_eval_block_internal(XrayState *X, AstNode *node, XSymbolTable 
     /* 进入新作用域 */
     xsymboltable_begin_scope(symbols);
     
-    XrValue last_value;
-    xr_setnull(&last_value);
+    XrValue last_value = xr_null();  /* 新API */
+
     
     /* 执行代码块中的所有语句 */
     for (int i = 0; i < node->as.block.count; i++) {
@@ -818,7 +812,7 @@ static XrValue xr_eval_block_internal(XrayState *X, AstNode *node, XSymbolTable 
 XrValue xr_eval_block(XrayState *X, AstNode *node, XSymbolTable *symbols) {
     LoopControl loop = {LOOP_NONE, 0};
     ReturnControl ret = {0, {XR_TNULL}};
-    xr_setnull(&ret.return_value);
+    ret.return_value = xr_null();  /* 新API */
     return xr_eval_block_internal(X, node, symbols, &loop, &ret);
 }
 
@@ -843,9 +837,9 @@ XrValue xr_eval_if_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols, Loop
         }
     }
     
-    XrValue null_value;
-    xr_setnull(&null_value);
-    return null_value;
+    
+        return xr_null();  /* 新API */
+
 }
 
 /*
@@ -854,8 +848,8 @@ XrValue xr_eval_if_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols, Loop
 XrValue xr_eval_while_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret) {
     loop->loop_depth++;  /* 进入循环 */
     
-    XrValue result;
-    xr_setnull(&result);
+    XrValue result = xr_null();  /* 新API - 默认初始化为null */
+
     
     while (1) {
         /* 求值条件 */
@@ -900,8 +894,8 @@ XrValue xr_eval_for_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols, Loo
     
     loop->loop_depth++;  /* 进入循环 */
     
-    XrValue result;
-    xr_setnull(&result);
+    XrValue result = xr_null();  /* 新API - 默认初始化为null */
+
     
     while (1) {
         /* 检查条件 */
@@ -956,9 +950,9 @@ XrValue xr_eval_break_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols, L
         loop->state = LOOP_BREAK;
     }
     
-    XrValue null_value;
-    xr_setnull(&null_value);
-    return null_value;
+    
+        return xr_null();  /* 新API */
+
 }
 
 /*
@@ -974,9 +968,9 @@ XrValue xr_eval_continue_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols
         loop->state = LOOP_CONTINUE;
     }
     
-    XrValue null_value;
-    xr_setnull(&null_value);
-    return null_value;
+    
+        return xr_null();  /* 新API */
+
 }
 
 /* ========== 函数相关求值 ========== */
@@ -989,35 +983,40 @@ XrValue xr_eval_function_decl(XrayState *X, AstNode *node, XSymbolTable *symbols
     FunctionDeclNode *func_node = &node->as.function_decl;
     
     /* 创建函数对象 */
-    XrFunction *func = xr_function_new(func_node->name, 
+    /* 注意：暂时传递NULL作为param_types和return_type，第6阶段后半段实现类型解析后再更新 */
+    XrFunction *func = xr_function_new(func_node->name,
                                        func_node->parameters,
+                                       NULL,  /* param_types - TODO: 实现类型解析后填充 */
                                        func_node->param_count,
+                                       NULL,  /* return_type - TODO: 实现类型解析后填充 */
                                        func_node->body);
     
     if (func == NULL) {
         xr_runtime_error(X, node->line, "创建函数对象失败");
-        XrValue error_value;
-        xr_setnull(&error_value);
-        return error_value;
+        
+            return xr_null();  /* 新API */
+
     }
     
     /* 创建函数值 */
-    XrValue func_value;
-    xr_setfunction(&func_value, func);
+    XrValue func_value = xr_null();  /* 初始化 */
+    func_value.type = XR_TFUNCTION;
+    func_value.type_info = NULL;  /* TODO: 函数类型信息 */
+    func_value.as.obj = func;
     
     /* 将函数注册到符号表（作为变量） */
     if (!xsymboltable_define(symbols, func_node->name, func_value, false)) {
         xr_runtime_error(X, node->line, "函数名 '%s' 已被定义", func_node->name);
         xr_function_free(func);
-        XrValue error_value;
-        xr_setnull(&error_value);
-        return error_value;
+        
+            return xr_null();  /* 新API */
+
     }
     
     /* 返回 null（函数声明不返回值） */
-    XrValue null_value;
-    xr_setnull(&null_value);
-    return null_value;
+    
+        return xr_null();  /* 新API */
+
 }
 
 /*
@@ -1031,23 +1030,23 @@ XrValue xr_eval_call_expr(XrayState *X, AstNode *node, XSymbolTable *symbols, Lo
     XrValue callee = xr_eval_internal(X, call_node->callee, symbols, loop, ret);
     
     /* 检查是否是函数 */
-    if (!xr_isfunction(&callee)) {
+    if (!xr_isfunction(callee)) {
         xr_runtime_error(X, node->line, "只能调用函数");
-        XrValue error_value;
-        xr_setnull(&error_value);
-        return error_value;
+        
+            return xr_null();  /* 新API */
+
     }
     
-    XrFunction *func = xr_tofunction(&callee);
+    XrFunction *func = xr_tofunction(callee);
     
     /* 检查参数数量 */
     if (call_node->arg_count != func->param_count) {
         xr_runtime_error(X, node->line, 
             "函数 '%s' 期望 %d 个参数，但传入了 %d 个",
             func->name, func->param_count, call_node->arg_count);
-        XrValue error_value;
-        xr_setnull(&error_value);
-        return error_value;
+        
+            return xr_null();  /* 新API */
+
     }
     
     /* 求值所有参数 */
@@ -1069,7 +1068,7 @@ XrValue xr_eval_call_expr(XrayState *X, AstNode *node, XSymbolTable *symbols, Lo
     
     /* 创建新的返回控制 */
     ReturnControl local_ret = {0, {XR_TNULL}};
-    xr_setnull(&local_ret.return_value);
+    local_ret.return_value = xr_null();  /* 新API */
     
     /* 执行函数体 */
     xr_eval_internal(X, func->body, symbols, loop, &local_ret);
@@ -1077,7 +1076,7 @@ XrValue xr_eval_call_expr(XrayState *X, AstNode *node, XSymbolTable *symbols, Lo
     /* 获取返回值 */
     XrValue result = local_ret.has_returned ? local_ret.return_value : (XrValue){XR_TNULL};
     if (!local_ret.has_returned) {
-        xr_setnull(&result);
+
     }
     
     /* 退出作用域 */
@@ -1102,7 +1101,7 @@ XrValue xr_eval_return_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols, 
     if (return_node->value != NULL) {
         ret->return_value = xr_eval_internal(X, return_node->value, symbols, loop, ret);
     } else {
-        xr_setnull(&ret->return_value);
+        ret->return_value = xr_null();  /* 新API */
     }
     
     /* 设置已返回标志 */

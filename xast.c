@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "xast.h"
+#include "xtype.h"  /* 新增：用于访问xr_builtin_*_type */
 
 /* 程序节点初始容量 */
 #define INITIAL_CAPACITY 8
@@ -34,7 +35,7 @@ static AstNode *alloc_node(XrayState *X, AstNodeType type, int line) {
 */
 AstNode *xr_ast_literal_int(XrayState *X, xr_Integer value, int line) {
     AstNode *node = alloc_node(X, AST_LITERAL_INT, line);
-    xr_setint(&node->as.literal.value, value);
+    node->as.literal.value = xr_int(value);  /* 新API */
     return node;
 }
 
@@ -43,7 +44,7 @@ AstNode *xr_ast_literal_int(XrayState *X, xr_Integer value, int line) {
 */
 AstNode *xr_ast_literal_float(XrayState *X, xr_Number value, int line) {
     AstNode *node = alloc_node(X, AST_LITERAL_FLOAT, line);
-    xr_setfloat(&node->as.literal.value, value);
+    node->as.literal.value = xr_float(value);  /* 新API */
     return node;
 }
 
@@ -57,8 +58,12 @@ AstNode *xr_ast_literal_string(XrayState *X, const char *value, int line) {
     /* TODO: 后续实现字符串对象和驻留 */
     char *str = (char *)malloc(strlen(value) + 1);
     strcpy(str, value);
-    node->as.literal.value.type = XR_TSTRING;
-    node->as.literal.value.as.obj = str;
+    /* 使用新API创建字符串值 */
+    XrValue v = xr_null();  /* 先创建一个值 */
+    v.type = XR_TSTRING;
+    v.type_info = &xr_builtin_string_type;
+    v.as.obj = str;
+    node->as.literal.value = v;
     return node;
 }
 
@@ -67,7 +72,7 @@ AstNode *xr_ast_literal_string(XrayState *X, const char *value, int line) {
 */
 AstNode *xr_ast_literal_null(XrayState *X, int line) {
     AstNode *node = alloc_node(X, AST_LITERAL_NULL, line);
-    xr_setnull(&node->as.literal.value);
+    node->as.literal.value = xr_null();  /* 新API */
     return node;
 }
 
@@ -77,7 +82,7 @@ AstNode *xr_ast_literal_null(XrayState *X, int line) {
 */
 AstNode *xr_ast_literal_bool(XrayState *X, int value, int line) {
     AstNode *node = alloc_node(X, value ? AST_LITERAL_TRUE : AST_LITERAL_FALSE, line);
-    xr_setbool(&node->as.literal.value, value ? 1 : 0);
+    node->as.literal.value = xr_bool(value ? 1 : 0);  /* 新API */
     return node;
 }
 
@@ -657,10 +662,10 @@ void xr_ast_print(AstNode *node, int indent) {
     /* 打印节点详细信息 */
     switch (node->type) {
         case AST_LITERAL_INT:
-            printf("(%lld)", (long long)xr_toint(&node->as.literal.value));
+            printf("(%lld)", (long long)xr_toint(node->as.literal.value));  /* 新API：不需要& */
             break;
         case AST_LITERAL_FLOAT:
-            printf("(%g)", xr_tofloat(&node->as.literal.value));
+            printf("(%g)", xr_tofloat(node->as.literal.value));  /* 新API：不需要& */
             break;
         case AST_LITERAL_STRING:
             printf("(\"%s\")", (char *)node->as.literal.value.as.obj);

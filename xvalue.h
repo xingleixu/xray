@@ -1,21 +1,35 @@
 /*
 ** xvalue.h
-** Xray 值类型系统定义
-** 定义了语言支持的所有数据类型
+** Xray 值对象系统 - 双模式设计
+** 
+** v0.6.0：支持类型信息，预留NaN Tagging接口
+** 参考：Wren的双模式设计
 */
 
 #ifndef xvalue_h
 #define xvalue_h
 
 #include "xray.h"
+#include <stdint.h>
+#include <stdbool.h>
 
 /* 前向声明 */
 typedef struct AstNode AstNode;
 typedef struct XScope XScope;
+typedef struct XrTypeInfo XrTypeInfo;
+
+/*
+** 编译时开关：NaN Tagging模式
+** 0 = Tagged Union（调试模式，16字节）- 第6阶段
+** 1 = NaN Tagging（性能模式，8字节）- 第13阶段
+*/
+#ifndef XR_NAN_TAGGING
+  #define XR_NAN_TAGGING 0
+#endif
 
 /* 
 ** 类型标签
-** Xray 支持的基本类型：null、bool、int、float、string、function、array、set、map、class
+** 基本类型标识符
 */
 typedef enum {
     XR_TNULL,       /* null 类型 */
@@ -31,61 +45,178 @@ typedef enum {
 } XrType;
 
 /*
-** 函数对象
-** 存储函数的名称、参数和函数体
+** 对象头部（用于GC和类型信息）
+** 所有堆分配对象的公共头部
+*/
+typedef struct XrObject {
+    struct XrObject *next;   /* GC链表指针 */
+    XrType type;             /* 对象基本类型 */
+    XrTypeInfo *type_info;   /* 详细类型信息 */
+    bool marked;             /* GC标记位 */
+} XrObject;
+
+/* ========== 值表示（双模式）========== */
+
+#if XR_NAN_TAGGING
+
+  /* ========== 性能模式（第13阶段启用）========== */
+  typedef uint64_t XrValue;
+  
+  /* NaN Tagging宏定义（第13阶段实现）*/
+  #define XR_SIGN_BIT ((uint64_t)1 << 63)
+  #define XR_QNAN     ((uint64_t)0x7ffc000000000000)
+  
+  /* 类型判断宏（预留） */
+  #define XR_IS_NUM(v)    (((v) & XR_QNAN) != XR_QNAN)
+  #define XR_IS_OBJ(v)    (((v) & (XR_QNAN | XR_SIGN_BIT)) == (XR_QNAN | XR_SIGN_BIT))
+  #define XR_IS_NULL(v)   ((v) == XR_NULL_VAL)
+  #define XR_IS_BOOL(v)   (((v) & ~1) == XR_FALSE_VAL)
+  #define XR_IS_INT(v)    (XR_IS_NUM(v))  /* 暂时简化，第13阶段优化 */
+  #define XR_IS_FLOAT(v)  (XR_IS_NUM(v))
+  #define XR_IS_STRING(v) (XR_IS_OBJ(v))  /* 需要进一步检查对象类型 */
+  
+  /* 值访问宏（预留） */
+  #define XR_TO_BOOL(v)   ((int)((v) == XR_TRUE_VAL))
+  #define XR_TO_INT(v)    ((xr_Integer)wrenDoubleFromBits(v))
+  #define XR_TO_FLOAT(v)  (wrenDoubleFromBits(v))
+  #define XR_TO_OBJ(v)    ((void*)(uintptr_t)((v) & ~(XR_SIGN_BIT | XR_QNAN)))
+  
+  /* 单例值（预留） */
+  #define XR_NULL_VAL     ((XrValue)(uint64_t)(XR_QNAN | 1))
+  #define XR_FALSE_VAL    ((XrValue)(uint64_t)(XR_QNAN | 2))
+  #define XR_TRUE_VAL     ((XrValue)(uint64_t)(XR_QNAN | 3))
+  
+  /* 双精度浮点数编码/解码（第13阶段实现） */
+  static inline double wrenDoubleFromBits(uint64_t bits);
+  static inline uint64_t wrenDoubleToBits(double num);
+
+#else
+
+  /* ========== 调试模式（第6阶段使用）========== */
+  typedef struct {
+    XrType type;              /* 基本类型标签 */
+    XrTypeInfo *type_info;    /* 详细类型信息（新增！）*/
+    union {
+      int b;                  /* 布尔值 */
+      xr_Integer i;           /* 整数值 */
+      xr_Number n;            /* 浮点数值 */
+      void *obj;              /* 对象指针 */
+    } as;
+  } XrValue;
+  
+  /* 类型判断宏（调试模式实现） */
+  #define XR_IS_NULL(v)   ((v).type == XR_TNULL)
+  #define XR_IS_BOOL(v)   ((v).type == XR_TBOOL)
+  #define XR_IS_INT(v)    ((v).type == XR_TINT)
+  #define XR_IS_FLOAT(v)  ((v).type == XR_TFLOAT)
+  #define XR_IS_STRING(v) ((v).type == XR_TSTRING)
+  #define XR_IS_FUNCTION(v) ((v).type == XR_TFUNCTION)
+  #define XR_IS_ARRAY(v)  ((v).type == XR_TARRAY)
+  #define XR_IS_OBJ(v)    ((v).type >= XR_TFUNCTION)
+  
+  /* 值访问宏（调试模式实现） */
+  #define XR_TO_BOOL(v)   ((v).as.b)
+  #define XR_TO_INT(v)    ((v).as.i)
+  #define XR_TO_FLOAT(v)  ((v).as.n)
+  #define XR_TO_OBJ(v)    ((v).as.obj)
+
+#endif
+
+/* ========== 统一API（支持双模式切换）========== */
+
+/* 类型检查宏（外部使用这些） */
+#define xr_isnull(v)      XR_IS_NULL(v)
+#define xr_isbool(v)      XR_IS_BOOL(v)
+#define xr_isint(v)       XR_IS_INT(v)
+#define xr_isfloat(v)     XR_IS_FLOAT(v)
+#define xr_isstring(v)    XR_IS_STRING(v)
+#define xr_isfunction(v)  XR_IS_FUNCTION(v)
+#define xr_isarray(v)     XR_IS_ARRAY(v)
+
+/* 值访问宏（外部使用这些） */
+#define xr_tobool(v)      XR_TO_BOOL(v)
+#define xr_toint(v)       XR_TO_INT(v)
+#define xr_tofloat(v)     XR_TO_FLOAT(v)
+#define xr_toobj(v)       XR_TO_OBJ(v)
+#define xr_tostring(v)    ((XrString*)XR_TO_OBJ(v))
+#define xr_tofunction(v)  ((XrFunction*)XR_TO_OBJ(v))
+
+/* ========== 值创建函数（新API⭐）========== */
+
+/* 基本值创建（使用内置类型） */
+XrValue xr_null(void);
+XrValue xr_bool(int b);
+XrValue xr_int(xr_Integer i);
+XrValue xr_float(xr_Number n);
+
+/* 带类型信息的值创建 */
+XrValue xr_make_int(xr_Integer i, XrTypeInfo *type_info);
+XrValue xr_make_float(xr_Number n, XrTypeInfo *type_info);
+XrValue xr_make_bool(int b, XrTypeInfo *type_info);
+
+/* ========== 类型信息访问（新增）========== */
+
+/* 获取值的类型信息 */
+XrTypeInfo* xr_typeof(const XrValue *v);
+
+/* 获取类型名称字符串 */
+const char* xr_typename_str(const XrValue *v);
+
+/* 类型检查 */
+bool xr_value_is_type(const XrValue *v, XrTypeInfo *expected);
+
+/* 基本类型名称（保留兼容） */
+const char* xr_typename(XrType type);
+
+/* ========== 对象定义（在XrValue之后）========== */
+
+/*
+** 字符串对象
 */
 typedef struct {
+    XrObject header;
+    size_t length;
+    uint32_t hash;
+    char data[];  /* 柔性数组 */
+} XrString;
+
+/*
+** 数组对象（为第9阶段准备）
+*/
+typedef struct {
+    XrObject header;
+    size_t capacity;
+    size_t count;
+    XrValue *data;
+} XrArray;
+
+/*
+** 函数对象
+*/
+typedef struct {
+    XrObject header;
     char *name;              /* 函数名 */
     char **parameters;       /* 参数列表 */
+    XrTypeInfo **param_types;  /* 参数类型列表（新增） */
     int param_count;         /* 参数数量 */
+    XrTypeInfo *return_type;   /* 返回类型（新增） */
     AstNode *body;           /* 函数体（AST节点） */
-    XScope *closure_scope;   /* 闭包作用域（暂时为NULL，第六阶段实现） */
+    XScope *closure_scope;   /* 闭包作用域 */
 } XrFunction;
 
-/* 
-** 值对象
-** 使用带标签的联合体实现多态值
-*/
-typedef struct {
-    XrType type;
-    union {
-        int b;           /* 布尔值 */
-        xr_Integer i;    /* 整数值 */
-        xr_Number n;     /* 浮点数值 */
-        void *obj;       /* 对象指针（字符串、数组、函数等） */
-    } as;
-} XrValue;
+/* ========== 对象操作 ========== */
 
-/* 类型检查宏 */
-#define xr_isnull(v)      ((v)->type == XR_TNULL)
-#define xr_isbool(v)      ((v)->type == XR_TBOOL)
-#define xr_isint(v)       ((v)->type == XR_TINT)
-#define xr_isfloat(v)     ((v)->type == XR_TFLOAT)
-#define xr_isstring(v)    ((v)->type == XR_TSTRING)
-#define xr_isfunction(v)  ((v)->type == XR_TFUNCTION)
-#define xr_isarray(v)     ((v)->type == XR_TARRAY)
+/* 字符串对象 */
+XrString* xr_string_new(const char *str, size_t length);
+void xr_string_free(XrString *str);
 
-/* 值访问宏 */
-#define xr_tobool(v)      ((v)->as.b)
-#define xr_toint(v)       ((v)->as.i)
-#define xr_tofloat(v)     ((v)->as.n)
-#define xr_toobj(v)       ((v)->as.obj)
-#define xr_tofunction(v)  ((XrFunction *)(v)->as.obj)
-
-/* 值设置宏 */
-#define xr_setnull(v)         ((v)->type = XR_TNULL)
-#define xr_setbool(v, val)    ((v)->type = XR_TBOOL, (v)->as.b = (val))
-#define xr_setint(v, val)     ((v)->type = XR_TINT, (v)->as.i = (val))
-#define xr_setfloat(v, val)   ((v)->type = XR_TFLOAT, (v)->as.n = (val))
-#define xr_setfunction(v, f)  ((v)->type = XR_TFUNCTION, (v)->as.obj = (f))
-
-/* 值操作函数 */
-const char *xr_typename(XrType type);
-
-/* 函数对象操作 */
-XrFunction *xr_function_new(const char *name, char **parameters, 
-                            int param_count, AstNode *body);
+/* 函数对象 */
+XrFunction* xr_function_new(const char *name, char **parameters, 
+                            XrTypeInfo **param_types, int param_count,
+                            XrTypeInfo *return_type, AstNode *body);
 void xr_function_free(XrFunction *func);
 
-#endif /* xvalue_h */
+/* 对象头部操作 */
+void xr_object_init(XrObject *obj, XrType type, XrTypeInfo *type_info);
 
+#endif /* xvalue_h */

@@ -53,7 +53,7 @@ static XrValue eval_code(XrayState *X, const char *code) {
     AstNode *ast = xr_parse(X, code);
     if (!ast) {
         XrValue null_val;
-        xr_setnull(&null_val);
+        null_val = xr_null();  /* 新API */
         return null_val;
     }
     XrValue result = xr_eval(X, ast);
@@ -75,7 +75,7 @@ TEST(test_symbol_table_create) {
 TEST(test_symbol_table_define_variable) {
     XSymbolTable *table = xsymboltable_new();
     XrValue value;
-    xr_setint(&value, 42);
+    value = xr_int(42);  /* 新API */
     
     bool success = xsymboltable_define(table, "x", value, false);
     ASSERT(success, "变量定义失败");
@@ -83,8 +83,8 @@ TEST(test_symbol_table_define_variable) {
     XrValue result;
     bool found = xsymboltable_get(table, "x", &result);
     ASSERT(found, "变量未找到");
-    ASSERT(xr_isint(&result), "变量类型错误");
-    ASSERT(xr_toint(&result) == 42, "变量值错误");
+    ASSERT(xr_isint(result), "变量类型错误");
+    ASSERT(xr_toint(result) == 42, "变量值错误");
     
     xsymboltable_free(table);
 }
@@ -92,13 +92,13 @@ TEST(test_symbol_table_define_variable) {
 TEST(test_symbol_table_define_const) {
     XSymbolTable *table = xsymboltable_new();
     XrValue value;
-    xr_setfloat(&value, 3.14);
+    value = xr_float(3.14);  /* 新API */
     
     bool success = xsymboltable_define(table, "PI", value, true);
     ASSERT(success, "常量定义失败");
     
     XrValue new_value;
-    xr_setfloat(&new_value, 2.71);
+    new_value = xr_float(2.71);  /* 新API */
     bool assign_success = xsymboltable_assign(table, "PI", new_value);
     ASSERT(!assign_success, "常量不应该能被修改");
     
@@ -108,8 +108,8 @@ TEST(test_symbol_table_define_const) {
 TEST(test_symbol_table_scope) {
     XSymbolTable *table = xsymboltable_new();
     XrValue value1, value2;
-    xr_setint(&value1, 10);
-    xr_setint(&value2, 20);
+    value1 = xr_int(10);  /* 新API */
+    value2 = xr_int(20);  /* 新API */
     
     /* 全局作用域定义 x = 10 */
     xsymboltable_define(table, "x", value1, false);
@@ -123,14 +123,14 @@ TEST(test_symbol_table_scope) {
     
     XrValue result;
     xsymboltable_get(table, "x", &result);
-    ASSERT(xr_toint(&result) == 20, "应该获取到局部变量");
+    ASSERT(xr_toint(result) == 20, "应该获取到局部变量");
     
     /* 退出作用域 */
     xsymboltable_end_scope(table);
     ASSERT(table->scope_depth == 0, "作用域深度应该回到0");
     
     xsymboltable_get(table, "x", &result);
-    ASSERT(xr_toint(&result) == 10, "应该获取到全局变量");
+    ASSERT(xr_toint(result) == 10, "应该获取到全局变量");
     
     xsymboltable_free(table);
 }

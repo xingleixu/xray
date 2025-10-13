@@ -38,8 +38,8 @@ static void test_literal_int() {
     assert(node != NULL);
     assert(node->type == AST_LITERAL_INT);
     assert(node->line == 1);
-    assert(xr_isint(&node->as.literal.value));
-    assert(xr_toint(&node->as.literal.value) == 42);
+    assert(xr_isint(node->as.literal.value));
+    assert(xr_toint(node->as.literal.value) == 42);
     
     xr_ast_free(X, node);
     xray_close(X);
@@ -56,8 +56,8 @@ static void test_literal_float() {
     
     assert(node != NULL);
     assert(node->type == AST_LITERAL_FLOAT);
-    assert(xr_isfloat(&node->as.literal.value));
-    assert(xr_tofloat(&node->as.literal.value) == 3.14);
+    assert(xr_isfloat(node->as.literal.value));
+    assert(xr_tofloat(node->as.literal.value) == 3.14);
     
     xr_ast_free(X, node);
     xray_close(X);
@@ -74,7 +74,7 @@ static void test_literal_string() {
     
     assert(node != NULL);
     assert(node->type == AST_LITERAL_STRING);
-    assert(xr_isstring(&node->as.literal.value));
+    assert(xr_isstring(node->as.literal.value));
     
     xr_ast_free(X, node);
     xray_close(X);
@@ -91,7 +91,7 @@ static void test_literal_null() {
     
     assert(node != NULL);
     assert(node->type == AST_LITERAL_NULL);
-    assert(xr_isnull(&node->as.literal.value));
+    assert(xr_isnull(node->as.literal.value));
     
     xr_ast_free(X, node);
     xray_close(X);
@@ -109,15 +109,15 @@ static void test_literal_bool() {
     AstNode *node_true = xr_ast_literal_bool(X, 1, 1);
     assert(node_true != NULL);
     assert(node_true->type == AST_LITERAL_TRUE);
-    assert(xr_isbool(&node_true->as.literal.value));
-    assert(xr_tobool(&node_true->as.literal.value) == 1);
+    assert(xr_isbool(node_true->as.literal.value));
+    assert(xr_tobool(node_true->as.literal.value) == 1);
     
     /* 测试 false */
     AstNode *node_false = xr_ast_literal_bool(X, 0, 1);
     assert(node_false != NULL);
     assert(node_false->type == AST_LITERAL_FALSE);
-    assert(xr_isbool(&node_false->as.literal.value));
-    assert(xr_tobool(&node_false->as.literal.value) == 0);
+    assert(xr_isbool(node_false->as.literal.value));
+    assert(xr_tobool(node_false->as.literal.value) == 0);
     
     xr_ast_free(X, node_true);
     xr_ast_free(X, node_false);

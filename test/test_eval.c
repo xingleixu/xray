@@ -50,8 +50,8 @@ static void test_eval_int() {
     TEST("整数求值");
     
     XrValue result = eval_code("42");
-    assert(xr_isint(&result));
-    assert(xr_toint(&result) == 42);
+    assert(xr_isint(result));
+    assert(xr_toint(result) == 42);
     
     PASS();
 }
@@ -61,8 +61,8 @@ static void test_eval_float() {
     TEST("浮点数求值");
     
     XrValue result = eval_code("3.14");
-    assert(xr_isfloat(&result));
-    assert(xr_tofloat(&result) == 3.14);
+    assert(xr_isfloat(result));
+    assert(xr_tofloat(result) == 3.14);
     
     PASS();
 }
@@ -72,12 +72,12 @@ static void test_eval_bool() {
     TEST("布尔值求值");
     
     XrValue result_true = eval_code("true");
-    assert(xr_isbool(&result_true));
-    assert(xr_tobool(&result_true) == 1);
+    assert(xr_isbool(result_true));
+    assert(xr_tobool(result_true) == 1);
     
     XrValue result_false = eval_code("false");
-    assert(xr_isbool(&result_false));
-    assert(xr_tobool(&result_false) == 0);
+    assert(xr_isbool(result_false));
+    assert(xr_tobool(result_false) == 0);
     
     PASS();
 }
@@ -87,7 +87,7 @@ static void test_eval_null() {
     TEST("null 求值");
     
     XrValue result = eval_code("null");
-    assert(xr_isnull(&result));
+    assert(xr_isnull(result));
     
     PASS();
 }
@@ -100,18 +100,18 @@ static void test_eval_add() {
     
     /* 整数加法 */
     XrValue result1 = eval_code("1 + 2");
-    assert(xr_isint(&result1));
-    assert(xr_toint(&result1) == 3);
+    assert(xr_isint(result1));
+    assert(xr_toint(result1) == 3);
     
     /* 浮点数加法 */
     XrValue result2 = eval_code("1.5 + 2.5");
-    assert(xr_isfloat(&result2));
-    assert(xr_tofloat(&result2) == 4.0);
+    assert(xr_isfloat(result2));
+    assert(xr_tofloat(result2) == 4.0);
     
     /* 混合加法 */
     XrValue result3 = eval_code("1 + 2.5");
-    assert(xr_isfloat(&result3));
-    assert(xr_tofloat(&result3) == 3.5);
+    assert(xr_isfloat(result3));
+    assert(xr_tofloat(result3) == 3.5);
     
     PASS();
 }
@@ -121,8 +121,8 @@ static void test_eval_sub() {
     TEST("减法运算");
     
     XrValue result = eval_code("10 - 3");
-    assert(xr_isint(&result));
-    assert(xr_toint(&result) == 7);
+    assert(xr_isint(result));
+    assert(xr_toint(result) == 7);
     
     PASS();
 }
@@ -132,8 +132,8 @@ static void test_eval_mul() {
     TEST("乘法运算");
     
     XrValue result = eval_code("4 * 5");
-    assert(xr_isint(&result));
-    assert(xr_toint(&result) == 20);
+    assert(xr_isint(result));
+    assert(xr_toint(result) == 20);
     
     PASS();
 }
@@ -143,8 +143,8 @@ static void test_eval_div() {
     TEST("除法运算");
     
     XrValue result = eval_code("15 / 3");
-    assert(xr_isfloat(&result));
-    assert(xr_tofloat(&result) == 5.0);
+    assert(xr_isfloat(result));
+    assert(xr_tofloat(result) == 5.0);
     
     PASS();
 }
@@ -154,8 +154,8 @@ static void test_eval_mod() {
     TEST("取模运算");
     
     XrValue result = eval_code("17 % 5");
-    assert(xr_isint(&result));
-    assert(xr_toint(&result) == 2);
+    assert(xr_isint(result));
+    assert(xr_toint(result) == 2);
     
     PASS();
 }
@@ -168,13 +168,13 @@ static void test_eval_precedence() {
     
     /* 2 + 3 * 4 应该是 2 + (3 * 4) = 14 */
     XrValue result1 = eval_code("2 + 3 * 4");
-    assert(xr_isint(&result1));
-    assert(xr_toint(&result1) == 14);
+    assert(xr_isint(result1));
+    assert(xr_toint(result1) == 14);
     
     /* (2 + 3) * 4 应该是 5 * 4 = 20 */
     XrValue result2 = eval_code("(2 + 3) * 4");
-    assert(xr_isint(&result2));
-    assert(xr_toint(&result2) == 20);
+    assert(xr_isint(result2));
+    assert(xr_toint(result2) == 20);
     
     PASS();
 }
@@ -186,12 +186,12 @@ static void test_eval_negate() {
     TEST("取负运算");
     
     XrValue result1 = eval_code("-5");
-    assert(xr_isint(&result1));
-    assert(xr_toint(&result1) == -5);
+    assert(xr_isint(result1));
+    assert(xr_toint(result1) == -5);
     
     XrValue result2 = eval_code("-(3 + 4)");
-    assert(xr_isint(&result2));
-    assert(xr_toint(&result2) == -7);
+    assert(xr_isint(result2));
+    assert(xr_toint(result2) == -7);
     
     PASS();
 }
@@ -201,12 +201,12 @@ static void test_eval_not() {
     TEST("逻辑非运算");
     
     XrValue result1 = eval_code("!true");
-    assert(xr_isbool(&result1));
-    assert(xr_tobool(&result1) == 0);
+    assert(xr_isbool(result1));
+    assert(xr_tobool(result1) == 0);
     
     XrValue result2 = eval_code("!false");
-    assert(xr_isbool(&result2));
-    assert(xr_tobool(&result2) == 1);
+    assert(xr_isbool(result2));
+    assert(xr_tobool(result2) == 1);
     
     PASS();
 }
@@ -219,23 +219,23 @@ static void test_eval_comparisons() {
     
     /* 相等 */
     XrValue result1 = eval_code("5 == 5");
-    assert(xr_isbool(&result1));
-    assert(xr_tobool(&result1) == 1);
+    assert(xr_isbool(result1));
+    assert(xr_tobool(result1) == 1);
     
     /* 不等 */
     XrValue result2 = eval_code("5 != 3");
-    assert(xr_isbool(&result2));
-    assert(xr_tobool(&result2) == 1);
+    assert(xr_isbool(result2));
+    assert(xr_tobool(result2) == 1);
     
     /* 小于 */
     XrValue result3 = eval_code("3 < 5");
-    assert(xr_isbool(&result3));
-    assert(xr_tobool(&result3) == 1);
+    assert(xr_isbool(result3));
+    assert(xr_tobool(result3) == 1);
     
     /* 大于 */
     XrValue result4 = eval_code("5 > 3");
-    assert(xr_isbool(&result4));
-    assert(xr_tobool(&result4) == 1);
+    assert(xr_isbool(result4));
+    assert(xr_tobool(result4) == 1);
     
     PASS();
 }
@@ -247,16 +247,16 @@ static void test_eval_logical_and() {
     TEST("逻辑与");
     
     XrValue result1 = eval_code("true && true");
-    assert(xr_isbool(&result1));
-    assert(xr_tobool(&result1) == 1);
+    assert(xr_isbool(result1));
+    assert(xr_tobool(result1) == 1);
     
     XrValue result2 = eval_code("true && false");
-    assert(xr_isbool(&result2));
-    assert(xr_tobool(&result2) == 0);
+    assert(xr_isbool(result2));
+    assert(xr_tobool(result2) == 0);
     
     XrValue result3 = eval_code("false && true");
-    assert(xr_isbool(&result3));
-    assert(xr_tobool(&result3) == 0);
+    assert(xr_isbool(result3));
+    assert(xr_tobool(result3) == 0);
     
     PASS();
 }
@@ -266,16 +266,16 @@ static void test_eval_logical_or() {
     TEST("逻辑或");
     
     XrValue result1 = eval_code("true || false");
-    assert(xr_isbool(&result1));
-    assert(xr_tobool(&result1) == 1);
+    assert(xr_isbool(result1));
+    assert(xr_tobool(result1) == 1);
     
     XrValue result2 = eval_code("false || true");
-    assert(xr_isbool(&result2));
-    assert(xr_tobool(&result2) == 1);
+    assert(xr_isbool(result2));
+    assert(xr_tobool(result2) == 1);
     
     XrValue result3 = eval_code("false || false");
-    assert(xr_isbool(&result3));
-    assert(xr_tobool(&result3) == 0);
+    assert(xr_isbool(result3));
+    assert(xr_tobool(result3) == 0);
     
     PASS();
 }
@@ -288,8 +288,8 @@ static void test_eval_complex() {
     
     /* (1 + 2) * 3 - 4 / 2 = 9 - 2 = 7 */
     XrValue result = eval_code("(1 + 2) * 3 - 4 / 2");
-    assert(xr_isfloat(&result));
-    assert(xr_tofloat(&result) == 7.0);
+    assert(xr_isfloat(result));
+    assert(xr_tofloat(result) == 7.0);
     
     PASS();
 }
@@ -300,13 +300,13 @@ static void test_eval_short_circuit() {
     
     /* false && 任何表达式 应该返回 false，不执行右边 */
     XrValue result1 = eval_code("false && (1 / 0)");  /* 不会除零，因为短路了 */
-    assert(xr_isbool(&result1));
-    assert(xr_tobool(&result1) == 0);
+    assert(xr_isbool(result1));
+    assert(xr_tobool(result1) == 0);
     
     /* true || 任何表达式 应该返回 true，不执行右边 */
     XrValue result2 = eval_code("true || (1 / 0)");   /* 不会除零，因为短路了 */
-    assert(xr_isbool(&result2));
-    assert(xr_tobool(&result2) == 1);
+    assert(xr_isbool(result2));
+    assert(xr_tobool(result2) == 1);
     
     PASS();
 }

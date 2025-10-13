@@ -60,6 +60,19 @@ typedef enum {
     TK_NEW,             /* new */
     TK_THIS,            /* this */
     
+    /* 类型关键字（新增） */
+    TK_VOID,            /* void */
+    TK_BOOL,            /* bool */
+    TK_TYPE_INT,        /* int（类型） */
+    TK_TYPE_FLOAT,      /* float（类型） */
+    TK_TYPE_STRING,     /* string（类型） */
+    TK_ANY,             /* any */
+    
+    /* 类型运算符（新增） */
+    TK_QUESTION,        /* ? (可选类型) */
+    TK_PIPE,            /* | (联合类型) */
+    TK_ARROW,           /* => (箭头函数) */
+    
     /* 字面量和标识符 */
     TK_INT,             /* 整数字面量 */
     TK_FLOAT,           /* 浮点数字面量 */

@@ -44,7 +44,7 @@ static void test_parse_int() {
     
     AstNode *expr = stmt->as.expr_stmt;
     assert(expr->type == AST_LITERAL_INT);
-    assert(xr_toint(&expr->as.literal.value) == 42);
+    assert(xr_toint(expr->as.literal.value) == 42);
     
     xr_ast_free(X, ast);
     xray_close(X);
@@ -64,7 +64,7 @@ static void test_parse_float() {
     
     AstNode *expr = ast->as.program.statements[0]->as.expr_stmt;
     assert(expr->type == AST_LITERAL_FLOAT);
-    assert(xr_tofloat(&expr->as.literal.value) == 3.14);
+    assert(xr_tofloat(expr->as.literal.value) == 3.14);
     
     xr_ast_free(X, ast);
     xray_close(X);
@@ -147,10 +147,10 @@ static void test_parse_add() {
     assert(expr->type == AST_BINARY_ADD);
     
     assert(expr->as.binary.left->type == AST_LITERAL_INT);
-    assert(xr_toint(&expr->as.binary.left->as.literal.value) == 1);
+    assert(xr_toint(expr->as.binary.left->as.literal.value) == 1);
     
     assert(expr->as.binary.right->type == AST_LITERAL_INT);
-    assert(xr_toint(&expr->as.binary.right->as.literal.value) == 2);
+    assert(xr_toint(expr->as.binary.right->as.literal.value) == 2);
     
     xr_ast_free(X, ast);
     xray_close(X);
@@ -244,7 +244,7 @@ static void test_parse_precedence() {
     
     /* 左边是 2 */
     assert(expr->as.binary.left->type == AST_LITERAL_INT);
-    assert(xr_toint(&expr->as.binary.left->as.literal.value) == 2);
+    assert(xr_toint(expr->as.binary.left->as.literal.value) == 2);
     
     /* 右边是 3 * 4 */
     assert(expr->as.binary.right->type == AST_BINARY_MUL);
@@ -296,7 +296,7 @@ static void test_parse_negate() {
     assert(expr->type == AST_UNARY_NEG);
     
     assert(expr->as.unary.operand->type == AST_LITERAL_INT);
-    assert(xr_toint(&expr->as.unary.operand->as.literal.value) == 5);
+    assert(xr_toint(expr->as.unary.operand->as.literal.value) == 5);
     
     xr_ast_free(X, ast);
     xray_close(X);
