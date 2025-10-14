@@ -1,0 +1,63 @@
+// 29_array_basics.xr - 数组基础功能测试
+
+print("=== 数组字面量 ===")
+
+// 空数组
+let empty = []
+print("空数组创建成功")
+
+// 整数数组
+let numbers = [1, 2, 3, 4, 5]
+print("整数数组创建成功")
+
+// 混合类型数组
+let mixed = [1, "hello", true, null]
+print("混合类型数组创建成功")
+
+print("")
+print("=== 索引访问 ===")
+
+// 访问数组元素
+let arr = [10, 20, 30, 40, 50]
+print(arr[0])  // 10
+print(arr[2])  // 30
+print(arr[4])  // 50
+
+print("")
+print("=== 索引赋值 ===")
+
+// 修改数组元素
+arr[1] = 99
+print(arr[1])  // 99
+
+arr[3] = 88
+print(arr[3])  // 88
+
+print("")
+print("=== length 属性 ===")
+
+print(arr.length)  // 5
+
+print("")
+print("=== 嵌套数组 ===")
+
+let matrix = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+print("嵌套数组创建成功")
+print(matrix[0][0])  // 1
+print(matrix[1][1])  // 5
+print(matrix[2][2])  // 9
+
+print("")
+print("=== 数组表达式 ===")
+
+// 数组元素可以是表达式
+let x = 10
+let y = 20
+let computed = [x + y, x * y, x - y]
+print(computed[0])  // 30
+print(computed[1])  // 200
+print(computed[2])  // -10
+
+print("")
+print("✓ 数组基础功能测试完成")
+

@@ -148,11 +148,14 @@ void xr_parser_synchronize(Parser *parser);
 AstNode *xr_parse_literal(Parser *parser);      /* 字面量：数字、字符串等 */
 AstNode *xr_parse_grouping(Parser *parser);     /* 括号表达式：(expr) */
 AstNode *xr_parse_unary(Parser *parser);        /* 一元运算符：-expr, !expr */
+AstNode *xr_parse_array_literal(Parser *parser);  /* 数组字面量：[1, 2, 3] */
 
 /*
 ** 中缀解析函数（处理二元运算符）
 */
 AstNode *xr_parse_binary(Parser *parser, AstNode *left);    /* 二元运算：left op right */
+AstNode *xr_parse_index_access(Parser *parser, AstNode *array);  /* 索引访问：arr[0] */
+AstNode *xr_parse_member_access(Parser *parser, AstNode *object);  /* 成员访问：arr.length */
 
 /* ========== 类型解析函数（新增）========== */
 

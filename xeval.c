@@ -11,6 +11,7 @@
 #include <math.h>
 #include "xeval.h"
 #include "xstate.h"
+#include "xarray.h"  /* 第九阶段新增：数组支持 */
 
 /* 最大调用深度（防止栈溢出） */
 #define MAX_CALL_DEPTH 1000
@@ -166,6 +167,19 @@ static XrValue xr_eval_internal(XrayState *X, AstNode *node, XSymbolTable *symbo
         
         case AST_RETURN_STMT:
             return xr_eval_return_stmt(X, node, symbols, loop, ret);
+        
+        /* 数组相关节点（第九阶段新增） */
+        case AST_ARRAY_LITERAL:
+            return xr_eval_array_literal(X, node, symbols, loop, ret);
+        
+        case AST_INDEX_GET:
+            return xr_eval_index_get(X, node, symbols, loop, ret);
+        
+        case AST_INDEX_SET:
+            return xr_eval_index_set(X, node, symbols, loop, ret);
+        
+        case AST_MEMBER_ACCESS:
+            return xr_eval_member_access(X, node, symbols, loop, ret);
         
         case AST_PROGRAM:
             return xr_eval_program(X, node, symbols, loop, ret);
@@ -1065,6 +1079,12 @@ XrValue xr_eval_function_expr(XrayState *X, AstNode *node, XSymbolTable *symbols
 XrValue xr_eval_call_expr(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret) {
     CallExprNode *call_node = &node->as.call_expr;
     
+    /* ===== 第九阶段新增：数组方法调用 ===== */
+    /* 检查是否为方法调用（callee 是 AST_MEMBER_ACCESS） */
+    if (call_node->callee->type == AST_MEMBER_ACCESS) {
+        return xr_eval_array_method_call(X, node, symbols, loop, ret);
+    }
+    
     /* 求值被调用者（获取函数对象） */
     XrValue callee = xr_eval_internal(X, call_node->callee, symbols, loop, ret);
     
@@ -1161,4 +1181,321 @@ XrValue xr_eval_return_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols, 
     ret->has_returned = 1;
     
     return ret->return_value;
+}
+
+/* ========== 数组求值函数（第九阶段新增）========== */
+
+/*
+** 求值数组字面量
+** [1, 2, 3]
+*/
+XrValue xr_eval_array_literal(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret) {
+    ArrayLiteralNode *arr_lit = &node->as.array_literal;
+    
+    /* 创建数组对象 */
+    XrArray *arr = xr_array_new();
+    
+    /* 求值每个元素并添加到数组 */
+    for (int i = 0; i < arr_lit->count; i++) {
+        XrValue element = xr_eval_internal(X, arr_lit->elements[i], symbols, loop, ret);
+        xr_array_push(arr, element);
+    }
+    
+    /* 包装成 XrValue */
+    return xr_value_from_array(arr);
+}
+
+/*
+** 求值索引访问
+** arr[0]
+*/
+XrValue xr_eval_index_get(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret) {
+    IndexGetNode *get = &node->as.index_get;
+    
+    /* 求值数组表达式 */
+    XrValue arr_val = xr_eval_internal(X, get->array, symbols, loop, ret);
+    if (!xr_value_is_array(arr_val)) {
+        xr_runtime_error(X, node->line, "无法对非数组值进行索引访问");
+        return xr_null();
+    }
+    
+    /* 求值索引表达式 */
+    XrValue idx_val = xr_eval_internal(X, get->index, symbols, loop, ret);
+    if (!xr_isint(idx_val)) {
+        xr_runtime_error(X, node->line, "数组索引必须是整数");
+        return xr_null();
+    }
+    
+    /* 获取数组元素 */
+    XrArray *arr = xr_value_to_array(arr_val);
+    int index = xr_toint(idx_val);
+    
+    /* 边界检查（xr_array_get 内部会检查） */
+    return xr_array_get(arr, index);
+}
+
+/*
+** 求值索引赋值
+** arr[0] = 10
+*/
+XrValue xr_eval_index_set(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret) {
+    IndexSetNode *set = &node->as.index_set;
+    
+    /* 求值数组表达式 */
+    XrValue arr_val = xr_eval_internal(X, set->array, symbols, loop, ret);
+    if (!xr_value_is_array(arr_val)) {
+        xr_runtime_error(X, node->line, "无法对非数组值进行索引赋值");
+        return xr_null();
+    }
+    
+    /* 求值索引表达式 */
+    XrValue idx_val = xr_eval_internal(X, set->index, symbols, loop, ret);
+    if (!xr_isint(idx_val)) {
+        xr_runtime_error(X, node->line, "数组索引必须是整数");
+        return xr_null();
+    }
+    
+    /* 求值赋值表达式 */
+    XrValue value = xr_eval_internal(X, set->value, symbols, loop, ret);
+    
+    /* 设置数组元素 */
+    XrArray *arr = xr_value_to_array(arr_val);
+    int index = xr_toint(idx_val);
+    
+    /* 边界检查 */
+    if (index < 0 || index >= (int)arr->count) {
+        xr_runtime_error(X, node->line, "数组索引越界: %d (数组长度: %zu)", index, arr->count);
+        return xr_null();
+    }
+    
+    xr_array_set(arr, index, value);
+    
+    /* 返回赋值结果 */
+    return value;
+}
+
+/*
+** 求值成员访问
+** arr.length, arr.push (这个阶段只支持length属性)
+*/
+XrValue xr_eval_member_access(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret) {
+    MemberAccessNode *member = &node->as.member_access;
+    
+    /* 求值对象表达式 */
+    XrValue obj_val = xr_eval_internal(X, member->object, symbols, loop, ret);
+    
+    /* 数组对象 */
+    if (xr_value_is_array(obj_val)) {
+        XrArray *arr = xr_value_to_array(obj_val);
+        
+        /* length 属性 */
+        if (strcmp(member->name, "length") == 0) {
+            return xr_int(arr->count);
+        }
+        
+        /* 其他方法暂不支持（方法调用在 AST_CALL_EXPR 中处理） */
+        xr_runtime_error(X, node->line, "未知的数组属性: %s", member->name);
+        return xr_null();
+    }
+    
+    xr_runtime_error(X, node->line, "对象不支持成员访问");
+    return xr_null();
+}
+
+/*
+** 求值数组方法调用（第九阶段 Day 6 新增）
+** arr.push(1), arr.pop(), arr.indexOf(10) 等
+*/
+XrValue xr_eval_array_method_call(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret) {
+    CallExprNode *call_node = &node->as.call_expr;
+    MemberAccessNode *member = &call_node->callee->as.member_access;
+    
+    /* 求值数组对象 */
+    XrValue obj_val = xr_eval_internal(X, member->object, symbols, loop, ret);
+    if (!xr_value_is_array(obj_val)) {
+        xr_runtime_error(X, node->line, "只能在数组上调用数组方法");
+        return xr_null();
+    }
+    
+    XrArray *arr = xr_value_to_array(obj_val);
+    const char *method = member->name;
+    
+    /* ===== push(element) ===== */
+    if (strcmp(method, "push") == 0) {
+        if (call_node->arg_count != 1) {
+            xr_runtime_error(X, node->line, "push 方法需要 1 个参数");
+            return xr_null();
+        }
+        XrValue arg = xr_eval_internal(X, call_node->arguments[0], symbols, loop, ret);
+        xr_array_push(arr, arg);
+        return xr_int(arr->count);  // 返回新长度
+    }
+    
+    /* ===== pop() ===== */
+    else if (strcmp(method, "pop") == 0) {
+        if (call_node->arg_count != 0) {
+            xr_runtime_error(X, node->line, "pop 方法不需要参数");
+            return xr_null();
+        }
+        return xr_array_pop(arr);
+    }
+    
+    /* ===== unshift(element) ===== */
+    else if (strcmp(method, "unshift") == 0) {
+        if (call_node->arg_count != 1) {
+            xr_runtime_error(X, node->line, "unshift 方法需要 1 个参数");
+            return xr_null();
+        }
+        XrValue arg = xr_eval_internal(X, call_node->arguments[0], symbols, loop, ret);
+        xr_array_unshift(arr, arg);
+        return xr_int(arr->count);  // 返回新长度
+    }
+    
+    /* ===== shift() ===== */
+    else if (strcmp(method, "shift") == 0) {
+        if (call_node->arg_count != 0) {
+            xr_runtime_error(X, node->line, "shift 方法不需要参数");
+            return xr_null();
+        }
+        return xr_array_shift(arr);
+    }
+    
+    /* ===== indexOf(element) ===== */
+    else if (strcmp(method, "indexOf") == 0) {
+        if (call_node->arg_count != 1) {
+            xr_runtime_error(X, node->line, "indexOf 方法需要 1 个参数");
+            return xr_null();
+        }
+        XrValue arg = xr_eval_internal(X, call_node->arguments[0], symbols, loop, ret);
+        int index = xr_array_index_of(arr, arg);
+        return xr_int(index);
+    }
+    
+    /* ===== contains(element) ===== */
+    else if (strcmp(method, "contains") == 0) {
+        if (call_node->arg_count != 1) {
+            xr_runtime_error(X, node->line, "contains 方法需要 1 个参数");
+            return xr_null();
+        }
+        XrValue arg = xr_eval_internal(X, call_node->arguments[0], symbols, loop, ret);
+        bool contains = xr_array_contains(arr, arg);
+        return xr_bool(contains);
+    }
+    
+    /* ===== forEach(callback) ===== */
+    else if (strcmp(method, "forEach") == 0) {
+        if (call_node->arg_count != 1) {
+            xr_runtime_error(X, node->line, "forEach 方法需要 1 个参数");
+            return xr_null();
+        }
+        XrValue callback_val = xr_eval_internal(X, call_node->arguments[0], symbols, loop, ret);
+        if (!xr_isfunction(callback_val)) {
+            xr_runtime_error(X, node->line, "forEach 需要一个函数作为参数");
+            return xr_null();
+        }
+        XrFunction *callback = xr_tofunction(callback_val);
+        xr_array_foreach(arr, callback, symbols);
+        return xr_null();  // forEach 无返回值
+    }
+    
+    /* ===== map(callback) ===== */
+    else if (strcmp(method, "map") == 0) {
+        if (call_node->arg_count != 1) {
+            xr_runtime_error(X, node->line, "map 方法需要 1 个参数");
+            return xr_null();
+        }
+        XrValue callback_val = xr_eval_internal(X, call_node->arguments[0], symbols, loop, ret);
+        if (!xr_isfunction(callback_val)) {
+            xr_runtime_error(X, node->line, "map 需要一个函数作为参数");
+            return xr_null();
+        }
+        XrFunction *callback = xr_tofunction(callback_val);
+        XrArray *result = xr_array_map(arr, callback, symbols);
+        return xr_value_from_array(result);
+    }
+    
+    /* ===== filter(callback) ===== */
+    else if (strcmp(method, "filter") == 0) {
+        if (call_node->arg_count != 1) {
+            xr_runtime_error(X, node->line, "filter 方法需要 1 个参数");
+            return xr_null();
+        }
+        XrValue callback_val = xr_eval_internal(X, call_node->arguments[0], symbols, loop, ret);
+        if (!xr_isfunction(callback_val)) {
+            xr_runtime_error(X, node->line, "filter 需要一个函数作为参数");
+            return xr_null();
+        }
+        XrFunction *callback = xr_tofunction(callback_val);
+        XrArray *result = xr_array_filter(arr, callback, symbols);
+        return xr_value_from_array(result);
+    }
+    
+    /* ===== reduce(callback, initial) ===== */
+    else if (strcmp(method, "reduce") == 0) {
+        if (call_node->arg_count != 2) {
+            xr_runtime_error(X, node->line, "reduce 方法需要 2 个参数");
+            return xr_null();
+        }
+        XrValue callback_val = xr_eval_internal(X, call_node->arguments[0], symbols, loop, ret);
+        if (!xr_isfunction(callback_val)) {
+            xr_runtime_error(X, node->line, "reduce 需要一个函数作为第一个参数");
+            return xr_null();
+        }
+        XrValue initial = xr_eval_internal(X, call_node->arguments[1], symbols, loop, ret);
+        XrFunction *callback = xr_tofunction(callback_val);
+        return xr_array_reduce(arr, callback, initial, symbols);
+    }
+    
+    /* 未知方法 */
+    else {
+        xr_runtime_error(X, node->line, "未知的数组方法: %s", method);
+        return xr_null();
+    }
+}
+
+/*
+** 辅助函数：调用函数（用于高阶方法）
+** 简化版本，用于数组方法的回调
+*/
+XrValue xr_eval_call_function(XrFunction *func, XrValue *args, int arg_count, XSymbolTable *parent_symbols) {
+    /* 创建新的符号表用于函数执行 */
+    XSymbolTable *func_symbols = xsymboltable_new();
+    
+    /* 设置闭包作用域 */
+    if (func->closure_scope != NULL) {
+        func_symbols->current->enclosing = func->closure_scope;
+    }
+    
+    /* 绑定参数（只绑定实际传入的参数数量） */
+    int params_to_bind = (arg_count < func->param_count) ? arg_count : func->param_count;
+    for (int i = 0; i < params_to_bind; i++) {
+        xsymboltable_define(func_symbols, func->parameters[i], args[i], false);
+    }
+    
+    /* 创建返回控制 */
+    ReturnControl ret_ctrl = {0, {XR_TNULL}};
+    ret_ctrl.return_value = xr_null();
+    
+    LoopControl loop_ctrl = {LOOP_NONE, 0};
+    
+    /* 执行函数体 */
+    XrValue result = xr_null();
+    if (func->body != NULL) {
+        result = xr_eval_internal(NULL, func->body, func_symbols, &loop_ctrl, &ret_ctrl);
+        
+        /* 如果有返回值，使用返回值 */
+        if (ret_ctrl.has_returned) {
+            result = ret_ctrl.return_value;
+        }
+    }
+    
+    /* 断开闭包链接（避免释放共享的作用域） */
+    if (func->closure_scope != NULL) {
+        func_symbols->current->enclosing = NULL;
+    }
+    
+    /* 清理符号表 */
+    xsymboltable_free(func_symbols);
+    
+    return result;
 }

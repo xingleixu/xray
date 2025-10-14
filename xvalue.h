@@ -183,12 +183,7 @@ typedef struct {
 /*
 ** 数组对象（为第9阶段准备）
 */
-typedef struct {
-    XrObject header;
-    size_t capacity;
-    size_t count;
-    XrValue *data;
-} XrArray;
+/* XrArray 定义移至 xarray.h */
 
 /*
 ** 函数对象
@@ -225,6 +220,16 @@ XrFunction* xr_function_new(const char *name, char **parameters,
                             XrTypeInfo **param_types, int param_count,
                             XrTypeInfo *return_type, AstNode *body);
 void xr_function_free(XrFunction *func);
+
+/* 数组值操作 */
+struct XrArray;  /* 前向声明 */
+XrValue xr_value_from_array(struct XrArray *arr);
+bool xr_value_is_array(XrValue v);
+struct XrArray* xr_value_to_array(XrValue v);
+
+/* 便捷宏 */
+#define xr_is_array(v)    xr_value_is_array(v)
+#define xr_to_array(v)    xr_value_to_array(v)
 
 /* 对象头部操作 */
 void xr_object_init(XrObject *obj, XrType type, XrTypeInfo *type_info);

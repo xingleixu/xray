@@ -26,10 +26,10 @@ static ParseRule rules[] = {
     [TK_RPAREN]     = {NULL,              NULL,           PREC_NONE},
     [TK_LBRACE]     = {NULL,              NULL,           PREC_NONE},
     [TK_RBRACE]     = {NULL,              NULL,           PREC_NONE},
-    [TK_LBRACKET]   = {NULL,              NULL,           PREC_NONE},
+    [TK_LBRACKET]   = {xr_parse_array_literal, xr_parse_index_access, PREC_CALL},  
     [TK_RBRACKET]   = {NULL,              NULL,           PREC_NONE},
     [TK_COMMA]      = {NULL,              NULL,           PREC_NONE},
-    [TK_DOT]        = {NULL,              NULL,           PREC_NONE},
+    [TK_DOT]        = {NULL,              xr_parse_member_access, PREC_CALL},  
     [TK_SEMICOLON]  = {NULL,              NULL,           PREC_NONE},
     
     /* 算术运算符 */
@@ -620,26 +620,46 @@ AstNode *xr_parse_variable(Parser *parser) {
 ** 这是一个中缀解析函数，left 是变量引用节点
 */
 AstNode *xr_parse_assignment(Parser *parser, AstNode *left) {
-    /* 检查左边是否为变量引用 */
-    if (left->type != AST_VARIABLE) {
-        xr_parser_error(parser, "赋值目标必须是变量");
+    int line = left->line;
+    
+    /* 变量赋值：x = 10 */
+    if (left->type == AST_VARIABLE) {
+        /* 保存变量名 */
+        char *name = strdup(left->as.variable.name);
+        
+        /* 释放变量引用节点（我们不再需要它） */
+        xr_ast_free(parser->X, left);
+        
+        /* 解析赋值表达式 */
+        AstNode *value = xr_parse_expression(parser);
+        
+        AstNode *node = xr_ast_assignment(parser->X, name, value, line);
+        free(name);
+        return node;
+    }
+    /* 索引赋值：arr[0] = 10 */
+    else if (left->type == AST_INDEX_GET) {
+        /* 保存数组和索引节点 */
+        AstNode *array = left->as.index_get.array;
+        AstNode *index = left->as.index_get.index;
+        
+        /* 解析赋值表达式 */
+        AstNode *value = xr_parse_expression(parser);
+        
+        /* 创建索引赋值节点 */
+        AstNode *node = xr_ast_index_set(parser->X, array, index, value, line);
+        
+        /* 释放原 index_get 节点（但不释放其子节点） */
+        free(left);
+        
+        return node;
+    }
+    /* 无效的赋值目标 */
+    else {
+        xr_parser_error(parser, "赋值目标必须是变量或数组索引");
         xr_ast_free(parser->X, left);
         return NULL;
     }
-    
-    /* 保存变量名 */
-    char *name = strdup(left->as.variable.name);
-    int line = left->line;
-    
-    /* 释放变量引用节点（我们不再需要它） */
-    xr_ast_free(parser->X, left);
-    
-    /* 解析赋值表达式 */
-    AstNode *value = xr_parse_expression(parser);
-    
-    AstNode *node = xr_ast_assignment(parser->X, name, value, line);
-    free(name);
-    return node;
 }
 
 /*
@@ -929,6 +949,87 @@ AstNode *xr_parse_call_expr(Parser *parser, AstNode *callee) {
     
     /* 创建函数调用节点 */
     return xr_ast_call_expr(parser->X, callee, arguments, arg_count, line);
+}
+
+/* ========== 数组解析函数========== */
+
+/*
+** 解析数组字面量（前缀）
+** [1, 2, 3]
+*/
+AstNode *xr_parse_array_literal(Parser *parser) {
+    int line = parser->previous.line;
+    
+    /* 已经消费了 '[' */
+    
+    /* 空数组 */
+    if (xr_parser_match(parser, TK_RBRACKET)) {
+        return xr_ast_array_literal(parser->X, NULL, 0, line);
+    }
+    
+    /* 收集元素 */
+    AstNode **elements = NULL;
+    int count = 0;
+    int capacity = 0;
+    
+    do {
+        /* 扩容 */
+        if (count >= capacity) {
+            capacity = capacity == 0 ? 4 : capacity * 2;
+            elements = (AstNode **)realloc(elements, sizeof(AstNode *) * capacity);
+        }
+        
+        /* 解析元素表达式 */
+        elements[count++] = xr_parse_expression(parser);
+        
+    } while (xr_parser_match(parser, TK_COMMA));
+    
+    /* 期望 ']' */
+    xr_parser_consume(parser, TK_RBRACKET, "期望 ']' 在数组元素后");
+    
+    return xr_ast_array_literal(parser->X, elements, count, line);
+}
+
+/*
+** 解析索引访问（中缀）
+** arr[0]
+*/
+AstNode *xr_parse_index_access(Parser *parser, AstNode *array) {
+    int line = parser->previous.line;
+    
+    /* 已经消费了 '[' */
+    
+    /* 解析索引表达式 */
+    AstNode *index = xr_parse_expression(parser);
+    
+    /* 期望 ']' */
+    xr_parser_consume(parser, TK_RBRACKET, "期望 ']' 在索引后");
+    
+    /* 创建索引访问节点 */
+    return xr_ast_index_get(parser->X, array, index, line);
+}
+
+/*
+** 解析成员访问（中缀）
+** arr.length, arr.push
+*/
+AstNode *xr_parse_member_access(Parser *parser, AstNode *object) {
+    int line = parser->previous.line;
+    
+    /* 已经消费了 '.' */
+    
+    /* 期望标识符 */
+    xr_parser_consume(parser, TK_NAME, "期望成员名称");
+    const char *name = parser->previous.start;
+    int name_len = parser->previous.length;
+    
+    /* 复制成员名 */
+    char *member_name = (char *)malloc(name_len + 1);
+    strncpy(member_name, name, name_len);
+    member_name[name_len] = '\0';
+    
+    /* 创建成员访问节点 */
+    return xr_ast_member_access(parser->X, object, member_name, line);
 }
 
 /*

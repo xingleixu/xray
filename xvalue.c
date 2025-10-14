@@ -299,3 +299,48 @@ void xr_function_free(XrFunction *func) {
     /* 释放函数对象本身 */
     free(func);
 }
+
+/* ========== 数组值操作========== */
+
+/*
+** 创建数组值
+*/
+XrValue xr_value_from_array(struct XrArray *arr) {
+#if XR_NAN_TAGGING
+    /* NaN Tagging模式：对象指针 */
+    return XR_OBJ_TO_VAL(arr);
+#else
+    /* Tagged Union模式 */
+    XrValue v;
+    v.type = XR_TARRAY;
+    v.type_info = NULL;  /* TODO: 数组类型信息 */
+    v.as.obj = arr;
+    return v;
+#endif
+}
+
+/*
+** 检查值是否为数组
+*/
+bool xr_value_is_array(XrValue v) {
+#if XR_NAN_TAGGING
+    if (!XR_IS_OBJ(v)) return false;
+    XrObject *obj = (XrObject*)XR_TO_OBJ(v);
+    return obj->type == XR_TARRAY;
+#else
+    return v.type == XR_TARRAY;
+#endif
+}
+
+/*
+** 从值中提取数组对象
+*/
+struct XrArray* xr_value_to_array(XrValue v) {
+#if XR_NAN_TAGGING
+    if (!XR_IS_OBJ(v)) return NULL;
+    return (struct XrArray*)XR_TO_OBJ(v);
+#else
+    if (v.type != XR_TARRAY) return NULL;
+    return (struct XrArray*)v.as.obj;
+#endif
+}

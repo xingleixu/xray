@@ -1,0 +1,84 @@
+// 31_array_higher_order.xr - 数组高阶方法测试
+// 演示数组与箭头函数的完美结合
+
+print("=== forEach 方法 ===")
+
+let numbers = [1, 2, 3, 4, 5]
+
+print("遍历数组:")
+numbers.forEach((x) => {
+    print(x * 2)
+})
+// 输出: 2, 4, 6, 8, 10
+
+print("")
+print("=== map 方法 ===")
+
+print("原数组: [1, 2, 3, 4, 5]")
+
+let doubled = numbers.map((x) => x * 2)
+print("doubled (x => x * 2):")
+print(doubled[0])  // 2
+print(doubled[1])  // 4
+print(doubled[2])  // 6
+
+let squared = numbers.map((x) => x * x)
+print("squared (x => x * x):")
+print(squared[0])  // 1
+print(squared[1])  // 4
+print(squared[2])  // 9
+print(squared[3])  // 16
+print(squared[4])  // 25
+
+print("")
+print("=== filter 方法 ===")
+
+let evens = numbers.filter((x) => x % 2 == 0)
+print("evens (x => x % 2 == 0):")
+print(evens.length)  // 2
+print(evens[0])      // 2
+print(evens[1])      // 4
+
+let largeNumbers = numbers.filter((x) => x > 3)
+print("largeNumbers (x => x > 3):")
+print(largeNumbers.length)  // 2
+print(largeNumbers[0])      // 4
+print(largeNumbers[1])      // 5
+
+print("")
+print("=== reduce 方法 ===")
+
+// 求和
+let sum = numbers.reduce((acc, x) => acc + x, 0)
+print("sum (reduce with +):")
+print(sum)  // 15
+
+// 求积
+let product = numbers.reduce((acc, x) => acc * x, 1)
+print("product (reduce with *):")
+print(product)  // 120
+
+// 最大值（使用三元运算符）
+// let max = numbers.reduce((acc, x) => x > acc ? x : acc, numbers[0])
+// print("max:")
+// print(max)  // 5
+
+print("")
+print("=== 链式调用示例 ===")
+
+// 先过滤，再映射，最后归约
+// evens → [2, 4]
+// doubled → [4, 16]  
+// sum → 20
+
+let result = numbers.filter((x) => x % 2 == 0)
+let doubled_evens = result.map((x) => x * x)
+let sum_squared = doubled_evens.reduce((acc, x) => acc + x, 0)
+
+print("过滤偶数，平方，求和:")
+print(sum_squared)  // 20
+
+print("")
+print("✓ 数组高阶方法测试完成")
+print("✓ 数组与箭头函数完美结合！")
+

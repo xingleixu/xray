@@ -77,6 +77,12 @@ typedef enum {
     AST_CALL_EXPR,          /* 函数调用：add(1, 2) */
     AST_RETURN_STMT,        /* return 语句：return expr */
     
+    /* 数组相关节点 */
+    AST_ARRAY_LITERAL,      /* 数组字面量：[1, 2, 3] */
+    AST_INDEX_GET,          /* 索引访问：arr[0] */
+    AST_INDEX_SET,          /* 索引赋值：arr[0] = 10 */
+    AST_MEMBER_ACCESS,      /* 成员访问：arr.length, arr.push */
+    
     /* 程序节点 */
     AST_PROGRAM             /* 程序根节点 */
 } AstNodeType;
@@ -237,6 +243,43 @@ typedef struct {
 } ReturnStmtNode;
 
 /*
+** 数组字面量节点
+** [1, 2, 3]
+*/
+typedef struct {
+    AstNode **elements;     /* 元素表达式数组 */
+    int count;              /* 元素数量 */
+} ArrayLiteralNode;
+
+/*
+** 索引访问节点
+** arr[0]
+*/
+typedef struct {
+    AstNode *array;         /* 数组表达式 */
+    AstNode *index;         /* 索引表达式 */
+} IndexGetNode;
+
+/*
+** 索引赋值节点
+** arr[0] = 10
+*/
+typedef struct {
+    AstNode *array;         /* 数组表达式 */
+    AstNode *index;         /* 索引表达式 */
+    AstNode *value;         /* 赋值表达式 */
+} IndexSetNode;
+
+/*
+** 成员访问节点
+** arr.length, arr.push
+*/
+typedef struct {
+    AstNode *object;        /* 对象表达式 */
+    char *name;             /* 成员名称 */
+} MemberAccessNode;
+
+/*
 ** AST 节点通用结构
 ** 所有节点类型的基础
 */
@@ -265,6 +308,10 @@ struct AstNode {
         FunctionDeclNode function_expr; /* 函数表达式（复用FunctionDeclNode，name可为NULL） */
         CallExprNode call_expr;     /* 函数调用 */
         ReturnStmtNode return_stmt; /* return 语句 */
+        ArrayLiteralNode array_literal;  /* 数组字面量 */
+        IndexGetNode index_get;     /* 索引访问 */
+        IndexSetNode index_set;     /* 索引赋值 */
+        MemberAccessNode member_access; /* 成员访问 */
         ProgramNode program;        /* 程序 */
     } as;
 };
@@ -352,6 +399,18 @@ AstNode *xr_ast_call_expr(XrayState *X, AstNode *callee,
 
 /* 创建 return 语句节点 */
 AstNode *xr_ast_return_stmt(XrayState *X, AstNode *value, int line);
+
+/* 创建数组字面量节点 */
+AstNode *xr_ast_array_literal(XrayState *X, AstNode **elements, int count, int line);
+
+/* 创建索引访问节点 */
+AstNode *xr_ast_index_get(XrayState *X, AstNode *array, AstNode *index, int line);
+
+/* 创建索引赋值节点 */
+AstNode *xr_ast_index_set(XrayState *X, AstNode *array, AstNode *index, AstNode *value, int line);
+
+/* 创建成员访问节点 */
+AstNode *xr_ast_member_access(XrayState *X, AstNode *object, const char *name, int line);
 
 /* 释放 AST 节点 */
 void xr_ast_free(XrayState *X, AstNode *node);

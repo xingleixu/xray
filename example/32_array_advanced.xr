@@ -1,0 +1,98 @@
+// 32_array_advanced.xr - 数组综合示例
+
+print("=== 综合示例：数据处理 ===")
+print("")
+
+// 创建一些测试数据
+let scores = [85, 92, 78, 95, 88, 76, 90, 83]
+print("学生成绩: [85, 92, 78, 95, 88, 76, 90, 83]")
+print("")
+
+// 1. 找出优秀成绩 (>= 90)
+print("1. 优秀成绩 (>= 90):")
+let excellent = scores.filter((s) => s >= 90)
+excellent.forEach((s) => {
+    print(s)
+})
+// 输出: 92, 95, 90
+
+print("")
+
+// 2. 成绩提升 5 分
+print("2. 所有成绩 +5:")
+let improved = scores.map((s) => s + 5)
+improved.forEach((s) => {
+    print(s)
+})
+
+print("")
+
+// 3. 计算总分和平均分
+print("3. 统计信息:")
+let totalScore = scores.reduce((acc, s) => acc + s, 0)
+print("总分:")
+print(totalScore)  // 687
+
+let count = scores.length
+print("平均分:")
+print(totalScore / count)  // 约 85.875
+
+print("")
+
+// 4. 找出低于平均分的成绩
+print("4. 低于平均分的成绩:")
+let average = totalScore / count
+let belowAverage = scores.filter((s) => s < average)
+print("数量:")
+print(belowAverage.length)
+belowAverage.forEach((s) => {
+    print(s)
+})
+
+print("")
+
+// 5. 复杂变换：及格成绩平方后求和
+print("5. 及格成绩(>=60)平方后求和:")
+let passedScores = scores.filter((s) => s >= 60)
+let squaredPassed = passedScores.map((s) => s * s)
+let sumSquared = squaredPassed.reduce((acc, s) => acc + s, 0)
+print(sumSquared)
+
+print("")
+
+// 6. 数组操作组合
+print("6. 综合操作:")
+let nums = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+print("原数组: [1..10]")
+
+// 偶数 → 平方 → 求和
+let evenSquareSum = nums
+    .filter((x) => x % 2 == 0)
+let evenSquared = evenSquareSum.map((x) => x * x)
+let finalSum = evenSquared.reduce((acc, x) => acc + x, 0)
+
+print("偶数平方和:")
+print(finalSum)  // 2^2 + 4^2 + 6^2 + 8^2 + 10^2 = 220
+
+print("")
+
+// 7. 嵌套数组处理
+print("7. 嵌套数组:")
+let matrix = [[1, 2], [3, 4], [5, 6]]
+print("矩阵: [[1,2], [3,4], [5,6]]")
+
+// 计算每行的和
+print("每行求和:")
+let rowSums = matrix.map((row) => {
+    let sum = row.reduce((acc, x) => acc + x, 0)
+    return sum
+})
+rowSums.forEach((sum) => {
+    print(sum)
+})
+// 输出: 3, 7, 11
+
+print("")
+print("✓ 数组综合示例完成")
+print("✓ Xray v0.9.0 数组功能全部实现！")
+

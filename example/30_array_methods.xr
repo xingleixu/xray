@@ -1,0 +1,86 @@
+// 30_array_methods.xr - 数组方法测试
+
+print("=== push 方法 ===")
+
+let arr = []
+print("初始数组为空")
+
+let len1 = arr.push(1)
+print("push(1), 新长度:")
+print(len1)  // 1
+
+let len2 = arr.push(2)
+print("push(2), 新长度:")
+print(len2)  // 2
+
+let len3 = arr.push(3)
+print("push(3), 新长度:")
+print(len3)  // 3
+
+print("arr[0]:")
+print(arr[0])  // 1
+print("arr[1]:")
+print(arr[1])  // 2
+print("arr[2]:")
+print(arr[2])  // 3
+
+print("")
+print("=== pop 方法 ===")
+
+let last = arr.pop()
+print("pop() 返回:")
+print(last)  // 3
+
+print("剩余长度:")
+print(arr.length)  // 2
+
+let prev = arr.pop()
+print("pop() 返回:")
+print(prev)  // 2
+
+print("")
+print("=== unshift 方法 ===")
+
+arr.unshift(0)
+print("unshift(0) 后:")
+print(arr[0])  // 0
+print(arr[1])  // 1
+
+print("")
+print("=== shift 方法 ===")
+
+let first = arr.shift()
+print("shift() 返回:")
+print(first)  // 0
+
+print("剩余元素:")
+print(arr[0])  // 1
+
+print("")
+print("=== indexOf 方法 ===")
+
+let numbers = [10, 20, 30, 40, 50]
+print("数组: [10, 20, 30, 40, 50]")
+
+let idx1 = numbers.indexOf(30)
+print("indexOf(30):")
+print(idx1)  // 2
+
+let idx2 = numbers.indexOf(99)
+print("indexOf(99):")
+print(idx2)  // -1 (不存在)
+
+print("")
+print("=== contains 方法 ===")
+
+let has40 = numbers.contains(40)
+print("contains(40):")
+print(has40)  // true
+
+let has99 = numbers.contains(99)
+print("contains(99):")
+print(has99)  // false
+
+print("")
+print("✓ 数组方法测试完成")
+

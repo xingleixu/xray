@@ -448,6 +448,69 @@ AstNode *xr_ast_return_stmt(XrayState *X, AstNode *value, int line) {
     return node;
 }
 
+/* ========== 数组相关节点========== */
+
+/*
+** 创建数组字面量节点
+** elements: 元素表达式数组
+** count: 元素数量
+*/
+AstNode *xr_ast_array_literal(XrayState *X, AstNode **elements, int count, int line) {
+    AstNode *node = alloc_node(X, AST_ARRAY_LITERAL, line);
+    node->as.array_literal.count = count;
+    
+    /* 复制元素数组 */
+    if (count > 0) {
+        node->as.array_literal.elements = (AstNode **)malloc(sizeof(AstNode *) * count);
+        for (int i = 0; i < count; i++) {
+            node->as.array_literal.elements[i] = elements[i];
+        }
+    } else {
+        node->as.array_literal.elements = NULL;
+    }
+    
+    return node;
+}
+
+/*
+** 创建索引访问节点
+** array: 数组表达式
+** index: 索引表达式
+*/
+AstNode *xr_ast_index_get(XrayState *X, AstNode *array, AstNode *index, int line) {
+    AstNode *node = alloc_node(X, AST_INDEX_GET, line);
+    node->as.index_get.array = array;
+    node->as.index_get.index = index;
+    return node;
+}
+
+/*
+** 创建索引赋值节点
+** array: 数组表达式
+** index: 索引表达式
+** value: 赋值表达式
+*/
+AstNode *xr_ast_index_set(XrayState *X, AstNode *array, AstNode *index, AstNode *value, int line) {
+    AstNode *node = alloc_node(X, AST_INDEX_SET, line);
+    node->as.index_set.array = array;
+    node->as.index_set.index = index;
+    node->as.index_set.value = value;
+    return node;
+}
+
+/*
+** 创建成员访问节点
+** object: 对象表达式
+** name: 成员名称
+*/
+AstNode *xr_ast_member_access(XrayState *X, AstNode *object, const char *name, int line) {
+    AstNode *node = alloc_node(X, AST_MEMBER_ACCESS, line);
+    node->as.member_access.object = object;
+    node->as.member_access.name = (char *)malloc(strlen(name) + 1);
+    strcpy(node->as.member_access.name, name);
+    return node;
+}
+
 /* ========== AST 释放 ========== */
 
 /*
@@ -607,6 +670,38 @@ void xr_ast_free(XrayState *X, AstNode *node) {
             }
             break;
         
+        /* 数组相关节点 */
+        case AST_ARRAY_LITERAL:
+            /* 释放数组元素 */
+            if (node->as.array_literal.elements != NULL) {
+                for (int i = 0; i < node->as.array_literal.count; i++) {
+                    xr_ast_free(X, node->as.array_literal.elements[i]);
+                }
+                free(node->as.array_literal.elements);
+            }
+            break;
+        
+        case AST_INDEX_GET:
+            /* 释放数组和索引表达式 */
+            xr_ast_free(X, node->as.index_get.array);
+            xr_ast_free(X, node->as.index_get.index);
+            break;
+        
+        case AST_INDEX_SET:
+            /* 释放数组、索引和值表达式 */
+            xr_ast_free(X, node->as.index_set.array);
+            xr_ast_free(X, node->as.index_set.index);
+            xr_ast_free(X, node->as.index_set.value);
+            break;
+        
+        case AST_MEMBER_ACCESS:
+            /* 释放对象表达式和成员名 */
+            xr_ast_free(X, node->as.member_access.object);
+            if (node->as.member_access.name != NULL) {
+                free(node->as.member_access.name);
+            }
+            break;
+        
         /* 程序节点 */
         case AST_PROGRAM:
             for (int i = 0; i < node->as.program.count; i++) {
@@ -667,6 +762,10 @@ const char *xr_ast_typename(AstNodeType type) {
         case AST_FUNCTION_DECL:     return "FunctionDecl";
         case AST_CALL_EXPR:         return "CallExpr";
         case AST_RETURN_STMT:       return "ReturnStmt";
+        case AST_ARRAY_LITERAL:     return "ArrayLiteral";
+        case AST_INDEX_GET:         return "IndexGet";
+        case AST_INDEX_SET:         return "IndexSet";
+        case AST_MEMBER_ACCESS:     return "MemberAccess";
         case AST_PROGRAM:           return "Program";
         default:                    return "Unknown";
     }
@@ -847,6 +946,46 @@ void xr_ast_print(AstNode *node, int indent) {
             if (node->as.return_stmt.value != NULL) {
                 xr_ast_print(node->as.return_stmt.value, indent + 1);
             }
+            break;
+        
+        /* 数组相关节点 */
+        case AST_ARRAY_LITERAL:
+            printf(" [%d elements]\n", node->as.array_literal.count);
+            for (int i = 0; i < node->as.array_literal.count; i++) {
+                printf("%*s", (indent + 1) * 2, "");
+                printf("Element %d:", i);
+                xr_ast_print(node->as.array_literal.elements[i], indent + 2);
+            }
+            break;
+        
+        case AST_INDEX_GET:
+            printf("\n");
+            printf("%*s", (indent + 1) * 2, "");
+            printf("Array:");
+            xr_ast_print(node->as.index_get.array, indent + 2);
+            printf("%*s", (indent + 1) * 2, "");
+            printf("Index:");
+            xr_ast_print(node->as.index_get.index, indent + 2);
+            break;
+        
+        case AST_INDEX_SET:
+            printf("\n");
+            printf("%*s", (indent + 1) * 2, "");
+            printf("Array:");
+            xr_ast_print(node->as.index_set.array, indent + 2);
+            printf("%*s", (indent + 1) * 2, "");
+            printf("Index:");
+            xr_ast_print(node->as.index_set.index, indent + 2);
+            printf("%*s", (indent + 1) * 2, "");
+            printf("Value:");
+            xr_ast_print(node->as.index_set.value, indent + 2);
+            break;
+        
+        case AST_MEMBER_ACCESS:
+            printf(" .%s\n", node->as.member_access.name);
+            printf("%*s", (indent + 1) * 2, "");
+            printf("Object:");
+            xr_ast_print(node->as.member_access.object, indent + 2);
             break;
         
         case AST_PROGRAM:
