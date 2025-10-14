@@ -158,6 +158,9 @@ static XrValue xr_eval_internal(XrayState *X, AstNode *node, XSymbolTable *symbo
         case AST_FUNCTION_DECL:
             return xr_eval_function_decl(X, node, symbols);
         
+        case AST_FUNCTION_EXPR:
+            return xr_eval_function_expr(X, node, symbols);
+        
         case AST_CALL_EXPR:
             return xr_eval_call_expr(X, node, symbols, loop, ret);
         
@@ -998,6 +1001,10 @@ XrValue xr_eval_function_decl(XrayState *X, AstNode *node, XSymbolTable *symbols
 
     }
     
+    /* ===== 第八阶段新增：捕获当前作用域（闭包支持） ===== */
+    /* 保存当前作用域的引用，函数调用时会使用 */
+    func->closure_scope = symbols->current;
+    
     /* 创建函数值 */
     XrValue func_value = xr_null();  /* 初始化 */
     func_value.type = XR_TFUNCTION;
@@ -1017,6 +1024,38 @@ XrValue xr_eval_function_decl(XrayState *X, AstNode *node, XSymbolTable *symbols
     
         return xr_null();  /* 新API */
 
+}
+
+/*
+** 求值函数表达式（箭头函数/匿名函数）
+** 创建匿名函数对象并返回
+*/
+XrValue xr_eval_function_expr(XrayState *X, AstNode *node, XSymbolTable *symbols) {
+    FunctionDeclNode *func_node = &node->as.function_expr;
+    
+    /* 创建匿名函数对象 */
+    XrFunction *func = xr_function_new(NULL,  /* 匿名函数无名称 */
+                                       func_node->parameters,
+                                       NULL,  /* param_types */
+                                       func_node->param_count,
+                                       NULL,  /* return_type */
+                                       func_node->body);
+    
+    if (func == NULL) {
+        xr_runtime_error(X, node->line, "创建函数对象失败");
+        return xr_null();
+    }
+    
+    /* 捕获当前作用域（闭包支持） */
+    func->closure_scope = symbols->current;
+    
+    /* 创建并返回函数值 */
+    XrValue func_value = xr_null();
+    func_value.type = XR_TFUNCTION;
+    func_value.type_info = NULL;
+    func_value.as.obj = func;
+    
+    return func_value;
 }
 
 /*
@@ -1058,12 +1097,19 @@ XrValue xr_eval_call_expr(XrayState *X, AstNode *node, XSymbolTable *symbols, Lo
         }
     }
     
-    /* 在当前符号表中创建新作用域（这样可以访问外层函数） */
-    xsymboltable_begin_scope(symbols);
+    /* ===== 第八阶段新增：支持闭包 ===== */
+    /* 创建新的符号表用于函数执行，基于函数定义时的作用域（闭包） */
+    XSymbolTable *func_symbols = xsymboltable_new();
     
-    /* 绑定参数到当前作用域 */
+    /* 如果函数有闭包作用域，设置为外层作用域 */
+    if (func->closure_scope != NULL) {
+        /* 设置闭包作用域为外层（重要：不由func_symbols拥有） */
+        func_symbols->current->enclosing = func->closure_scope;
+    }
+    
+    /* 绑定参数到函数作用域 */
     for (int i = 0; i < func->param_count; i++) {
-        xsymboltable_define(symbols, func->parameters[i], args[i], false);
+        xsymboltable_define(func_symbols, func->parameters[i], args[i], false);
     }
     
     /* 创建新的返回控制 */
@@ -1071,7 +1117,7 @@ XrValue xr_eval_call_expr(XrayState *X, AstNode *node, XSymbolTable *symbols, Lo
     local_ret.return_value = xr_null();  /* 新API */
     
     /* 执行函数体 */
-    xr_eval_internal(X, func->body, symbols, loop, &local_ret);
+    xr_eval_internal(X, func->body, func_symbols, loop, &local_ret);
     
     /* 获取返回值 */
     XrValue result = local_ret.has_returned ? local_ret.return_value : (XrValue){XR_TNULL};
@@ -1079,8 +1125,15 @@ XrValue xr_eval_call_expr(XrayState *X, AstNode *node, XSymbolTable *symbols, Lo
 
     }
     
-    /* 退出作用域 */
-    xsymboltable_end_scope(symbols);
+    /* ===== 关键修复：只释放当前作用域，不释放enclosing ===== */
+    /* 保存enclosing引用 */
+    XScope *enclosing_backup = func_symbols->current->enclosing;
+    func_symbols->current->enclosing = NULL;  /* 断开链接 */
+    
+    /* 现在可以安全地释放func_symbols（只会释放自己创建的作用域） */
+    xsymboltable_free(func_symbols);
+    
+    /* enclosing_backup仍然有效（由外部符号表管理） */
     
     /* 清理参数数组 */
     if (args != NULL) {

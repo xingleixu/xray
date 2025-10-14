@@ -73,6 +73,7 @@ typedef enum {
     
     /* 函数相关节点 */
     AST_FUNCTION_DECL,      /* 函数声明：function add(a, b) {...} */
+    AST_FUNCTION_EXPR,      /* 函数表达式/箭头函数：(a, b) => a + b */
     AST_CALL_EXPR,          /* 函数调用：add(1, 2) */
     AST_RETURN_STMT,        /* return 语句：return expr */
     
@@ -261,6 +262,7 @@ struct AstNode {
         BreakStmtNode break_stmt;   /* break 语句 */
         ContinueStmtNode continue_stmt; /* continue 语句 */
         FunctionDeclNode function_decl; /* 函数声明 */
+        FunctionDeclNode function_expr; /* 函数表达式（复用FunctionDeclNode，name可为NULL） */
         CallExprNode call_expr;     /* 函数调用 */
         ReturnStmtNode return_stmt; /* return 语句 */
         ProgramNode program;        /* 程序 */
@@ -336,8 +338,12 @@ AstNode *xr_ast_break_stmt(XrayState *X, int line);
 AstNode *xr_ast_continue_stmt(XrayState *X, int line);
 
 /* 创建函数声明节点 */
-AstNode *xr_ast_function_decl(XrayState *X, const char *name, 
+AstNode *xr_ast_function_decl(XrayState *X, const char *name,
                               char **parameters, int param_count,
+                              AstNode *body, int line);
+
+/* 创建函数表达式节点（箭头函数/匿名函数） */
+AstNode *xr_ast_function_expr(XrayState *X, char **parameters, int param_count,
                               AstNode *body, int line);
 
 /* 创建函数调用节点 */

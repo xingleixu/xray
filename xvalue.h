@@ -192,6 +192,9 @@ typedef struct {
 
 /*
 ** 函数对象
+** 
+** 注意：当前是树遍历解释器阶段的简化版本
+** 第13阶段切换到字节码VM时，将使用完整的XrClosure+XrFnProto模型
 */
 typedef struct {
     XrObject header;
@@ -201,7 +204,14 @@ typedef struct {
     int param_count;         /* 参数数量 */
     XrTypeInfo *return_type;   /* 返回类型（新增） */
     AstNode *body;           /* 函数体（AST节点） */
-    XScope *closure_scope;   /* 闭包作用域 */
+    XScope *closure_scope;   /* 闭包作用域（简化版，捕获外部变量） */
+    
+    /* ===== 第八阶段新增：闭包支持（简化版） ===== */
+    char **captured_vars;    /* 捕获的变量名列表 */
+    XrValue *captured_values; /* 捕获的变量值列表 */
+    int captured_count;      /* 捕获的变量数量 */
+    
+    /* 预留：第13阶段将使用XrClosure+XrUpvalue模型 */
 } XrFunction;
 
 /* ========== 对象操作 ========== */

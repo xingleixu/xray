@@ -74,6 +74,7 @@ XrValue xr_eval_continue_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols
 ** 这些函数需要 ReturnControl 参数来处理 return
 */
 XrValue xr_eval_function_decl(XrayState *X, AstNode *node, XSymbolTable *symbols);
+XrValue xr_eval_function_expr(XrayState *X, AstNode *node, XSymbolTable *symbols);
 XrValue xr_eval_call_expr(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret);
 XrValue xr_eval_return_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret);
 

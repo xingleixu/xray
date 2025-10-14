@@ -1,0 +1,32 @@
+// 27_arrow_functions.xr - 箭头函数测试
+
+// 测试1: 无参数箭头函数
+let pi = () => 3.14159
+print(pi())  // 应输出: 3.14159
+
+// 测试2: 单参数箭头函数（括号）
+let square = (x) => x * x
+print(square(5))  // 应输出: 25
+
+// 测试3: 多参数箭头函数
+let add = (a, b) => a + b
+print(add(10, 20))  // 应输出: 30
+
+// 测试4: 块体箭头函数
+let abs = (x) => {
+    if (x < 0) {
+        return -x
+    } else {
+        return x
+    }
+}
+
+print(abs(-5))  // 应输出: 5
+print(abs(5))   // 应输出: 5
+
+// 测试5: 箭头函数与闭包结合
+let multiplier = 3
+let triple = (x) => x * multiplier
+print(triple(7))  // 应输出: 21
+
+

@@ -1,0 +1,47 @@
+// 28_advanced_functions.xr - 高级函数特性
+
+// 测试1: 高阶函数 - map
+function map(arr_size, fn) {
+    let i = 0
+    while (i < arr_size) {
+        print(fn(i))
+        i = i + 1
+    }
+}
+
+map(5, (x) => x * 2)
+// 应输出: 0 2 4 6 8
+
+print("---")
+
+// 测试2: 函数组合
+function compose(f, g) {
+    return (x) => f(g(x))
+}
+
+let addOne = (x) => x + 1
+let double = (x) => x * 2
+
+let addOneThenDouble = compose(double, addOne)
+print(addOneThenDouble(5))  // 应输出: 12  ((5+1)*2)
+
+print("---")
+
+// 测试3: 柯里化
+let curry = (a) => (b) => (c) => a + b + c
+print(curry(1)(2)(3))  // 应输出: 6
+
+let add1 = curry(1)
+let add1and2 = add1(2)
+print(add1and2(3))  // 应输出: 6
+
+print("---")
+
+// 测试4: 立即执行函数表达式 (IIFE)
+let result = (() => {
+    let temp = 10 + 20
+    return temp * 2
+})()
+
+print(result)  // 应输出: 60
+

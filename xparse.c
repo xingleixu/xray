@@ -9,6 +9,10 @@
 #include <string.h>
 #include "xparse.h"
 
+/* ========== 前向声明 ========== */
+
+static AstNode *xr_parse_arrow_function_body(Parser *parser, char **params, int param_count, int line);
+
 /* ========== 解析规则表 ========== */
 
 /*
@@ -301,9 +305,119 @@ AstNode *xr_parse_literal(Parser *parser) {
 ** 解析括号表达式：(expression)
 */
 AstNode *xr_parse_grouping(Parser *parser) {
+    int line = parser->previous.line;
+    
+    /* ===== 第八阶段新增：检测箭头函数 ===== */
+    /* 尝试解析为箭头函数的参数列表 */
+    
+    /* 情况1: () => expr (无参数箭头函数) */
+    if (xr_parser_check(parser, TK_RPAREN)) {
+        xr_parser_advance(parser);  /* 消耗 ) */
+        if (xr_parser_match(parser, TK_ARROW)) {
+            /* 解析箭头函数体 */
+            return xr_parse_arrow_function_body(parser, NULL, 0, line);
+        }
+        /* 否则是语法错误：空的括号表达式 */
+        xr_parser_error(parser, "空的括号表达式");
+        return NULL;
+    }
+    
+    /* 情况2: (id) => expr 或 (id, id, ...) => expr (参数列表) */
+    /* 检查第一个token是否是标识符 */
+    if (xr_parser_check(parser, TK_NAME)) {
+        /* 保存当前位置 */
+        Token first_name = parser->current;
+        xr_parser_advance(parser);
+        
+        /* 检查后续：逗号或右括号 */
+        if (xr_parser_check(parser, TK_COMMA) || xr_parser_check(parser, TK_RPAREN)) {
+            /* 可能是箭头函数！收集所有参数 */
+            char **params = (char**)malloc(sizeof(char*) * 10);  /* 最多10个参数 */
+            int param_count = 0;
+            
+            /* 第一个参数 */
+            params[param_count] = (char*)malloc(first_name.length + 1);
+            strncpy(params[param_count], first_name.start, first_name.length);
+            params[param_count][first_name.length] = '\0';
+            param_count++;
+            
+            /* 解析剩余参数 */
+            while (xr_parser_match(parser, TK_COMMA)) {
+                xr_parser_consume(parser, TK_NAME, "期望参数名");
+                Token param = parser->previous;
+                params[param_count] = (char*)malloc(param.length + 1);
+                strncpy(params[param_count], param.start, param.length);
+                params[param_count][param.length] = '\0';
+                param_count++;
+            }
+            
+            /* 期望右括号 */
+            if (!xr_parser_match(parser, TK_RPAREN)) {
+                /* 不是箭头函数，释放参数并按普通表达式解析 */
+                for (int i = 0; i < param_count; i++) free(params[i]);
+                free(params);
+                /* TODO: 这里需要回退，暂时报错 */
+                xr_parser_error(parser, "期望 ')' 或 '=>'");
+                return NULL;
+            }
+            
+            /* 检查是否有箭头 */
+            if (xr_parser_match(parser, TK_ARROW)) {
+                /* 是箭头函数！解析函数体 */
+                return xr_parse_arrow_function_body(parser, params, param_count, line);
+            }
+            
+            /* 不是箭头函数，释放参数，按普通表达式解析 */
+            for (int i = 0; i < param_count; i++) free(params[i]);
+            free(params);
+            /* TODO: 回退并重新解析 */
+            xr_parser_error(parser, "暂不支持元组表达式");
+            return NULL;
+        }
+    }
+    
+    /* 否则是普通的分组表达式 */
     AstNode *expr = xr_parse_expression(parser);
     xr_parser_consume(parser, TK_RPAREN, "期望 ')' 来结束分组表达式");
     return xr_ast_grouping(parser->X, expr, parser->previous.line);
+}
+
+/*
+** 解析箭头函数体
+** 支持两种形式：
+**   1. 表达式体：=> expr（自动添加 return）
+**   2. 块体：=> { ... }
+*/
+AstNode *xr_parse_arrow_function_body(Parser *parser, char **params, int param_count, int line) {
+    AstNode *body;
+    
+    if (xr_parser_match(parser, TK_LBRACE)) {
+        /* 块体：=> { ... } */
+        body = xr_parse_block(parser);
+    } else {
+        /* 表达式体：=> expr */
+        AstNode *expr = xr_parse_expression(parser);
+        
+        /* 自动包装成 return 语句 */
+        AstNode *return_stmt = xr_ast_return_stmt(parser->X, expr, expr->line);
+        
+        /* 创建只包含一个return语句的block */
+        body = xr_ast_block(parser->X, line);
+        xr_ast_block_add(parser->X, body, return_stmt);
+    }
+    
+    /* 创建函数表达式节点 */
+    AstNode *func_expr = xr_ast_function_expr(parser->X, params, param_count, body, line);
+    
+    /* 释放参数数组（已被复制到AST节点中） */
+    if (params) {
+        for (int i = 0; i < param_count; i++) {
+            free(params[i]);
+        }
+        free(params);
+    }
+    
+    return func_expr;
 }
 
 /*

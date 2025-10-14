@@ -17,9 +17,11 @@ TEST_VARIABLES_TARGET = test/test_variables
 TEST_CONTROL_FLOW_TARGET = test/test_control_flow
 TEST_FUNCTIONS_TARGET = test/test_functions
 TEST_VALUE_TYPE_TARGET = test/test_value_type
+TEST_MEM_TARGET = test/test_mem
+TEST_STRUCTURES_TARGET = test/test_structures
 
 # 源文件
-CORE_SRCS = xvalue.c xtype.c xlex.c xstate.c xast.c xparse.c xparse_type.c xeval.c xscope.c
+CORE_SRCS = xvalue.c xtype.c xlex.c xstate.c xast.c xparse.c xparse_type.c xeval.c xscope.c xmem.c fn_proto.c upvalue.c closure.c
 MAIN_SRC = main.c
 TEST_SRC = test/test_lexer.c
 TEST_FOR_SRC = test/test_for_loop.c
@@ -30,6 +32,8 @@ TEST_VARIABLES_SRC = test/test_variables.c
 TEST_CONTROL_FLOW_SRC = test/test_control_flow.c
 TEST_FUNCTIONS_SRC = test/test_functions.c
 TEST_VALUE_TYPE_SRC = test/test_value_type.c
+TEST_MEM_SRC = test/test_mem.c
+TEST_STRUCTURES_SRC = test/test_structures.c
 
 # 对象文件
 CORE_OBJS = $(CORE_SRCS:.c=.o)
@@ -43,6 +47,8 @@ TEST_VARIABLES_OBJ = $(TEST_VARIABLES_SRC:.c=.o)
 TEST_CONTROL_FLOW_OBJ = $(TEST_CONTROL_FLOW_SRC:.c=.o)
 TEST_FUNCTIONS_OBJ = $(TEST_FUNCTIONS_SRC:.c=.o)
 TEST_VALUE_TYPE_OBJ = $(TEST_VALUE_TYPE_SRC:.c=.o)
+TEST_MEM_OBJ = $(TEST_MEM_SRC:.c=.o)
+TEST_STRUCTURES_OBJ = $(TEST_STRUCTURES_SRC:.c=.o)
 
 # 默认目标
 all: $(TARGET)
@@ -53,7 +59,7 @@ $(TARGET): $(CORE_OBJS) $(MAIN_OBJ)
 	@echo "编译完成: $(TARGET)"
 
 # 编译测试程序
-test: $(TEST_TARGET) $(TEST_FOR_TARGET) $(TEST_AST_TARGET) $(TEST_PARSER_TARGET) $(TEST_EVAL_TARGET) $(TEST_VARIABLES_TARGET) $(TEST_CONTROL_FLOW_TARGET) $(TEST_FUNCTIONS_TARGET) $(TEST_VALUE_TYPE_TARGET)
+test: $(TEST_TARGET) $(TEST_FOR_TARGET) $(TEST_AST_TARGET) $(TEST_PARSER_TARGET) $(TEST_EVAL_TARGET) $(TEST_VARIABLES_TARGET) $(TEST_CONTROL_FLOW_TARGET) $(TEST_FUNCTIONS_TARGET) $(TEST_VALUE_TYPE_TARGET) $(TEST_MEM_TARGET) $(TEST_STRUCTURES_TARGET)
 	@echo "运行词法分析器测试..."
 	./$(TEST_TARGET)
 	@echo ""
@@ -80,6 +86,12 @@ test: $(TEST_TARGET) $(TEST_FOR_TARGET) $(TEST_AST_TARGET) $(TEST_PARSER_TARGET)
 	@echo ""
 	@echo "运行值对象和类型系统测试..."
 	./$(TEST_VALUE_TYPE_TARGET)
+	@echo ""
+	@echo "运行内存管理测试..."
+	./$(TEST_MEM_TARGET)
+	@echo ""
+	@echo "运行闭包数据结构测试..."
+	./$(TEST_STRUCTURES_TARGET)
 
 $(TEST_TARGET): $(CORE_OBJS) $(TEST_OBJ)
 	$(CC) $(LDFLAGS) -o $@ $^
@@ -117,13 +129,21 @@ $(TEST_VALUE_TYPE_TARGET): $(CORE_OBJS) $(TEST_VALUE_TYPE_OBJ)
 	$(CC) $(LDFLAGS) -o $@ $^
 	@echo "编译完成: $(TEST_VALUE_TYPE_TARGET)"
 
+$(TEST_MEM_TARGET): xmem.o $(TEST_MEM_OBJ)
+	$(CC) $(LDFLAGS) -o $@ $^
+	@echo "编译完成: $(TEST_MEM_TARGET)"
+
+$(TEST_STRUCTURES_TARGET): xmem.o fn_proto.o upvalue.o closure.o $(TEST_STRUCTURES_OBJ)
+	$(CC) $(LDFLAGS) -o $@ $^
+	@echo "编译完成: $(TEST_STRUCTURES_TARGET)"
+
 # 编译规则
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 # 清理
 clean:
-	rm -f $(CORE_OBJS) $(MAIN_OBJ) $(TEST_OBJ) $(TEST_FOR_OBJ) $(TEST_AST_OBJ) $(TEST_PARSER_OBJ) $(TEST_EVAL_OBJ) $(TEST_VARIABLES_OBJ) $(TEST_CONTROL_FLOW_OBJ) $(TEST_FUNCTIONS_OBJ) $(TEST_VALUE_TYPE_OBJ) $(TARGET) $(TEST_TARGET) $(TEST_FOR_TARGET) $(TEST_AST_TARGET) $(TEST_PARSER_TARGET) $(TEST_EVAL_TARGET) $(TEST_VARIABLES_TARGET) $(TEST_CONTROL_FLOW_TARGET) $(TEST_FUNCTIONS_TARGET) $(TEST_VALUE_TYPE_TARGET)
+	rm -f $(CORE_OBJS) $(MAIN_OBJ) $(TEST_OBJ) $(TEST_FOR_OBJ) $(TEST_AST_OBJ) $(TEST_PARSER_OBJ) $(TEST_EVAL_OBJ) $(TEST_VARIABLES_OBJ) $(TEST_CONTROL_FLOW_OBJ) $(TEST_FUNCTIONS_OBJ) $(TEST_VALUE_TYPE_OBJ) $(TEST_MEM_OBJ) $(TEST_STRUCTURES_OBJ) $(TARGET) $(TEST_TARGET) $(TEST_FOR_TARGET) $(TEST_AST_TARGET) $(TEST_PARSER_TARGET) $(TEST_EVAL_TARGET) $(TEST_VARIABLES_TARGET) $(TEST_CONTROL_FLOW_TARGET) $(TEST_FUNCTIONS_TARGET) $(TEST_VALUE_TYPE_TARGET) $(TEST_MEM_TARGET) $(TEST_STRUCTURES_TARGET)
 	@echo "清理完成"
 
 # 重新编译

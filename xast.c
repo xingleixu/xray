@@ -385,6 +385,35 @@ AstNode *xr_ast_function_decl(XrayState *X, const char *name,
 }
 
 /*
+** 创建函数表达式节点（箭头函数/匿名函数）
+** parameters: 参数列表（字符串数组）
+** param_count: 参数数量
+** body: 函数体（必须是 block）
+*/
+AstNode *xr_ast_function_expr(XrayState *X, char **parameters, int param_count,
+                              AstNode *body, int line) {
+    AstNode *node = alloc_node(X, AST_FUNCTION_EXPR, line);
+    
+    /* 匿名函数没有名称 */
+    node->as.function_expr.name = NULL;
+    
+    /* 复制参数列表 */
+    node->as.function_expr.param_count = param_count;
+    if (param_count > 0) {
+        node->as.function_expr.parameters = (char **)malloc(sizeof(char *) * param_count);
+        for (int i = 0; i < param_count; i++) {
+            node->as.function_expr.parameters[i] = (char *)malloc(strlen(parameters[i]) + 1);
+            strcpy(node->as.function_expr.parameters[i], parameters[i]);
+        }
+    } else {
+        node->as.function_expr.parameters = NULL;
+    }
+    
+    node->as.function_expr.body = body;
+    return node;
+}
+
+/*
 ** 创建函数调用节点
 ** callee: 被调用的表达式（通常是变量）
 ** arguments: 参数列表（表达式数组）

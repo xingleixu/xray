@@ -1,0 +1,59 @@
+// 26_closures_simple.xr - 简单闭包示例
+// 第八阶段实现后可以运行
+
+// 测试1：基础闭包 - 计数器
+function makeCounter() {
+    let count = 0
+    function increment() {
+        count = count + 1
+        return count
+    }
+    return increment
+}
+
+let counter1 = makeCounter()
+print(counter1())  // 应输出: 1
+print(counter1())  // 应输出: 2
+
+let counter2 = makeCounter()
+print(counter2())  // 应输出: 1 (独立的计数器)
+
+// 测试2：捕获多个变量
+function makePerson(name, age) {
+    function getInfo() {
+        return name + " is " + age + " years old"
+    }
+    return getInfo
+}
+
+let person = makePerson("Alice", 30)
+print(person())  // 应输出: Alice is 30 years old
+
+// 测试3：嵌套闭包
+function outer(x) {
+    function middle(y) {
+        function inner(z) {
+            return x + y + z
+        }
+        return inner
+    }
+    return middle
+}
+
+let f = outer(1)(2)
+print(f(3))  // 应输出: 6
+
+// 测试4：修改捕获的变量
+function makeAccumulator(initial) {
+    let sum = initial
+    function add(value) {
+        sum = sum + value
+        return sum
+    }
+    return add
+}
+
+let acc = makeAccumulator(10)
+print(acc(5))  // 应输出: 15
+print(acc(3))  // 应输出: 18
+

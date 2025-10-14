@@ -1,0 +1,16 @@
+// 26_closure_block.xr - 块作用域闭包测试
+
+let result = 0
+
+{
+    let x = 10
+    
+    function addX(y) {
+        return x + y
+    }
+    
+    result = addX(5)
+}
+
+print(result)  // 应输出: 15
+

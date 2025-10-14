@@ -247,6 +247,11 @@ XrFunction* xr_function_new(const char *name, char **parameters,
     func->body = body;
     func->closure_scope = NULL;
     
+    /* 初始化闭包支持字段（第八阶段新增） */
+    func->captured_vars = NULL;
+    func->captured_values = NULL;
+    func->captured_count = 0;
+    
     return func;
 }
 
@@ -276,6 +281,19 @@ void xr_function_free(XrFunction *func) {
     /* 释放参数类型列表 */
     if (func->param_types) {
         free(func->param_types);
+    }
+    
+    /* 释放捕获的变量（第八阶段新增） */
+    if (func->captured_vars) {
+        for (int i = 0; i < func->captured_count; i++) {
+            if (func->captured_vars[i]) {
+                free(func->captured_vars[i]);
+            }
+        }
+        free(func->captured_vars);
+    }
+    if (func->captured_values) {
+        free(func->captured_values);
     }
     
     /* 释放函数对象本身 */

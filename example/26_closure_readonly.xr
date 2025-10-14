@@ -1,0 +1,24 @@
+// 26_closure_readonly.xr - 只读闭包测试
+// 测试函数能否读取外部变量（但不修改）
+
+let x = 10
+let y = 20
+
+function add() {
+    return x + y
+}
+
+print(add())  // 应输出: 30
+
+// 测试嵌套函数
+function makeAdder(a) {
+    function add(b) {
+        return a + b
+    }
+    return add
+}
+
+let add5 = makeAdder(5)
+print(add5(3))  // 应输出: 8
+print(add5(10)) // 应输出: 15
+

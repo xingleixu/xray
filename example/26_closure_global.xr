@@ -1,0 +1,26 @@
+// 26_closure_global.xr - 全局变量闭包测试
+// 测试函数访问全局变量
+
+let counter = 0
+
+function increment() {
+    counter = counter + 1
+    return counter
+}
+
+function decrement() {
+    counter = counter - 1
+    return counter
+}
+
+function getCounter() {
+    return counter
+}
+
+print(getCounter())  // 0
+print(increment())   // 1
+print(increment())   // 2
+print(decrement())   // 1
+print(getCounter())  // 1
+
+

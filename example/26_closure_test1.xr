@@ -1,0 +1,15 @@
+// 26_closure_test1.xr - 最简单的闭包测试
+// 测试函数是否能访问外部变量
+
+let x = 10
+
+function getX() {
+    return x
+}
+
+print(getX())  // 应输出: 10
+
+x = 20
+print(getX())  // 应输出: 20
+
+
