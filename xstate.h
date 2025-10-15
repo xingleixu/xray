@@ -63,5 +63,21 @@ CallFrame *xr_callstack_top(CallStack *stack);
 /* 获取当前调用深度 */
 int xr_callstack_depth(CallStack *stack);
 
+/* ========== 状态机操作函数 ========== */
+
+/*
+** 创建新的Xray状态机
+** 
+** @return 新创建的状态机
+*/
+XrayState* xr_state_new(void);
+
+/*
+** 释放Xray状态机
+** 
+** @param X 状态机对象
+*/
+void xr_state_free(XrayState *X);
+
 #endif /* xstate_h */
 

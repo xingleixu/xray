@@ -1,0 +1,22 @@
+// example/42_method_call.xr
+// 测试方法调用
+
+class Greeter {
+    sayHello() {
+        print("Hello from Greeter!")
+    }
+    
+    sayGoodbye() {
+        print("Goodbye!")
+    }
+}
+
+print("=== 测试方法调用 ===")
+let greeter = new Greeter()
+print("实例创建成功")
+
+greeter.sayHello()
+greeter.sayGoodbye()
+
+print("方法调用测试完成！")
+

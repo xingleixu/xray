@@ -1,0 +1,11 @@
+// 测试有参数但无类型注解的方法
+class Test {
+    setValue(v) {
+        print("setValue called with:")
+        print(v)
+    }
+}
+
+let t = new Test()
+t.setValue(100)
+

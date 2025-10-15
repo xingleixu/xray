@@ -1,0 +1,23 @@
+// example/38_class_simple.xr
+// Xray OOP最简单示例
+// v0.12.0：测试类定义和实例化
+
+// 定义一个空类
+class Empty {
+}
+
+// 定义一个有字段的类
+class Point {
+    x: int
+    y: int
+}
+
+// 定义一个有方法的类（无this访问）
+class Greeter {
+    sayHello() {
+        print("Hello from Greeter!")
+    }
+}
+
+print("Classes defined successfully!")
+

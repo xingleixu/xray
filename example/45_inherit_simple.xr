@@ -1,0 +1,26 @@
+// 测试简单继承（无super）
+class Animal {
+    name: string
+}
+
+class Dog extends Animal {
+    breed: string
+    
+    setName(n: string) {
+        this.name = n
+    }
+    
+    setBreed(b: string) {
+        this.breed = b
+    }
+}
+
+let dog = new Dog()
+dog.setName("Rex")
+dog.setBreed("Labrador")
+
+print("dog.name = ")
+print(dog.name)
+print("dog.breed = ")
+print(dog.breed)
+

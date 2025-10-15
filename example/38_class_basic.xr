@@ -1,0 +1,47 @@
+// example/38_class_basic.xr
+// Xray OOP基础示例
+// v0.12.0：第十二阶段 - 第一个OOP程序
+
+// 定义一个简单的Counter类
+class Counter {
+    // 字段（会自动声明）
+    count: int
+    
+    // 构造函数
+    constructor(initial: int) {
+        this.count = initial
+    }
+    
+    // 方法：增加计数
+    increment() {
+        this.count = this.count + 1
+    }
+    
+    // 方法：减少计数
+    decrement() {
+        this.count = this.count - 1
+    }
+    
+    // 方法：获取当前值
+    getValue(): int {
+        return this.count
+    }
+}
+
+// 创建Counter实例
+let counter = new Counter(0)
+
+// 调用方法
+counter.increment()
+counter.increment()
+counter.increment()
+
+// 打印结果
+print("Counter value: ")
+print(counter.getValue())
+
+// 减少计数
+counter.decrement()
+print("After decrement: ")
+print(counter.getValue())
+

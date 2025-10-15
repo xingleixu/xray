@@ -57,9 +57,17 @@ typedef enum {
     TK_TRUE,            /* true */
     TK_FALSE,           /* false */
     TK_CLASS,           /* class */
+    TK_EXTENDS,         /* extends（v0.12.0新增）*/
     TK_FUNCTION,        /* function */
     TK_NEW,             /* new */
     TK_THIS,            /* this */
+    TK_SUPER,           /* super（v0.12.0新增）*/
+    TK_CONSTRUCTOR,     /* constructor（v0.12.0新增）*/
+    TK_STATIC,          /* static（v0.12.0新增）*/
+    TK_PRIVATE,         /* private（v0.12.0新增）*/
+    TK_PUBLIC,          /* public（v0.12.0新增）*/
+    TK_GET,             /* get（v0.12.0新增）*/
+    TK_SET,             /* set（v0.12.0新增）*/
     
     /* 类型关键字（新增） */
     TK_VOID,            /* void */

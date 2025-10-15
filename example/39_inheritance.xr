@@ -1,0 +1,55 @@
+// example/39_inheritance.xr
+// Xray OOP继承示例
+// v0.12.0：第十二阶段 - 继承和方法重写
+
+// 父类：Animal
+class Animal {
+    name: string
+    
+    constructor(name: string) {
+        this.name = name
+    }
+    
+    speak() {
+        print(this.name)
+        print(" makes a sound")
+    }
+    
+    move() {
+        print(this.name)
+        print(" moves")
+    }
+}
+
+// 子类：Dog extends Animal
+class Dog extends Animal {
+    breed: string
+    
+    constructor(name: string, breed: string) {
+        super(name)
+        this.breed = breed
+    }
+    
+    speak() {
+        print(this.name)
+        print(" barks")
+    }
+    
+    wagTail() {
+        print(this.name)
+        print(" wags tail")
+    }
+}
+
+// 创建实例
+let animal = new Animal("Generic Animal")
+animal.speak()
+animal.move()
+
+print("---")
+
+let dog = new Dog("Rex", "Labrador")
+dog.speak()
+dog.move()
+dog.wagTail()
+

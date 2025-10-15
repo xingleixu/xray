@@ -561,6 +561,107 @@ AstNode *xr_ast_member_access(XrayState *X, AstNode *object, const char *name, i
 
 /* ========== AST 释放 ========== */
 
+/* ========== OOP节点创建函数（v0.12.0）========== */
+
+/*
+** 创建类声明节点
+*/
+AstNode *xr_ast_class_decl(XrayState *X, const char *name, const char *super_name,
+                           AstNode **fields, int field_count,
+                           AstNode **methods, int method_count, int line) {
+    AstNode *node = alloc_node(X, AST_CLASS_DECL, line);
+    node->as.class_decl.name = (char*)name;
+    node->as.class_decl.super_name = (char*)super_name;
+    node->as.class_decl.fields = fields;
+    node->as.class_decl.field_count = field_count;
+    node->as.class_decl.methods = methods;
+    node->as.class_decl.method_count = method_count;
+    return node;
+}
+
+/*
+** 创建字段声明节点
+*/
+AstNode *xr_ast_field_decl(XrayState *X, const char *name, const char *type_name,
+                           bool is_private, bool is_static,
+                           AstNode *initializer, int line) {
+    AstNode *node = alloc_node(X, AST_FIELD_DECL, line);
+    node->as.field_decl.name = (char*)name;
+    node->as.field_decl.type_name = (char*)type_name;
+    node->as.field_decl.is_private = is_private;
+    node->as.field_decl.is_static = is_static;
+    node->as.field_decl.initializer = initializer;
+    return node;
+}
+
+/*
+** 创建方法声明节点
+*/
+AstNode *xr_ast_method_decl(XrayState *X, const char *name,
+                            char **parameters, char **param_types, int param_count,
+                            const char *return_type, AstNode *body,
+                            bool is_constructor, bool is_static, bool is_private,
+                            bool is_getter, bool is_setter, int line) {
+    AstNode *node = alloc_node(X, AST_METHOD_DECL, line);
+    node->as.method_decl.name = (char*)name;
+    node->as.method_decl.parameters = parameters;
+    node->as.method_decl.param_types = param_types;
+    node->as.method_decl.param_count = param_count;
+    node->as.method_decl.return_type = (char*)return_type;
+    node->as.method_decl.body = body;
+    node->as.method_decl.is_constructor = is_constructor;
+    node->as.method_decl.is_static = is_static;
+    node->as.method_decl.is_private = is_private;
+    node->as.method_decl.is_getter = is_getter;
+    node->as.method_decl.is_setter = is_setter;
+    return node;
+}
+
+/*
+** 创建new表达式节点
+*/
+AstNode *xr_ast_new_expr(XrayState *X, const char *class_name,
+                         AstNode **arguments, int arg_count, int line) {
+    AstNode *node = alloc_node(X, AST_NEW_EXPR, line);
+    node->as.new_expr.class_name = (char*)class_name;
+    node->as.new_expr.arguments = arguments;
+    node->as.new_expr.arg_count = arg_count;
+    return node;
+}
+
+/*
+** 创建this表达式节点
+*/
+AstNode *xr_ast_this_expr(XrayState *X, int line) {
+    AstNode *node = alloc_node(X, AST_THIS_EXPR, line);
+    node->as.this_expr.placeholder = 0;
+    return node;
+}
+
+/*
+** 创建super调用节点
+*/
+AstNode *xr_ast_super_call(XrayState *X, const char *method_name,
+                           AstNode **arguments, int arg_count, int line) {
+    AstNode *node = alloc_node(X, AST_SUPER_CALL, line);
+    node->as.super_call.method_name = (char*)method_name;
+    node->as.super_call.arguments = arguments;
+    node->as.super_call.arg_count = arg_count;
+    return node;
+}
+
+/*
+** 创建成员赋值节点
+*/
+AstNode *xr_ast_member_set(XrayState *X, AstNode *object, const char *member,
+                           AstNode *value, int line) {
+    AstNode *node = alloc_node(X, AST_MEMBER_SET, line);
+    node->as.member_set.object = object;
+    node->as.member_set.member = (char*)member;
+    node->as.member_set.value = value;
+    return node;
+}
+
 /*
 ** 递归释放 AST 节点
 ** 释放节点及其所有子节点的内存
@@ -740,6 +841,76 @@ void xr_ast_free(XrayState *X, AstNode *node) {
             }
             break;
         
+        /* OOP相关节点（v0.12.0）*/
+        case AST_CLASS_DECL:
+            if (node->as.class_decl.name) free(node->as.class_decl.name);
+            if (node->as.class_decl.super_name) free(node->as.class_decl.super_name);
+            if (node->as.class_decl.fields) {
+                for (int i = 0; i < node->as.class_decl.field_count; i++) {
+                    xr_ast_free(X, node->as.class_decl.fields[i]);
+                }
+                free(node->as.class_decl.fields);
+            }
+            if (node->as.class_decl.methods) {
+                for (int i = 0; i < node->as.class_decl.method_count; i++) {
+                    xr_ast_free(X, node->as.class_decl.methods[i]);
+                }
+                free(node->as.class_decl.methods);
+            }
+            break;
+        
+        case AST_FIELD_DECL:
+            if (node->as.field_decl.name) free(node->as.field_decl.name);
+            if (node->as.field_decl.type_name) free(node->as.field_decl.type_name);
+            if (node->as.field_decl.initializer) xr_ast_free(X, node->as.field_decl.initializer);
+            break;
+        
+        case AST_METHOD_DECL:
+            if (node->as.method_decl.name) free(node->as.method_decl.name);
+            if (node->as.method_decl.return_type) free(node->as.method_decl.return_type);
+            if (node->as.method_decl.parameters) {
+                for (int i = 0; i < node->as.method_decl.param_count; i++) {
+                    if (node->as.method_decl.parameters[i]) free(node->as.method_decl.parameters[i]);
+                    if (node->as.method_decl.param_types && node->as.method_decl.param_types[i]) {
+                        free(node->as.method_decl.param_types[i]);
+                    }
+                }
+                free(node->as.method_decl.parameters);
+                if (node->as.method_decl.param_types) free(node->as.method_decl.param_types);
+            }
+            if (node->as.method_decl.body) xr_ast_free(X, node->as.method_decl.body);
+            break;
+        
+        case AST_NEW_EXPR:
+            if (node->as.new_expr.class_name) free(node->as.new_expr.class_name);
+            if (node->as.new_expr.arguments) {
+                for (int i = 0; i < node->as.new_expr.arg_count; i++) {
+                    xr_ast_free(X, node->as.new_expr.arguments[i]);
+                }
+                free(node->as.new_expr.arguments);
+            }
+            break;
+        
+        case AST_THIS_EXPR:
+            /* this不需要释放额外数据 */
+            break;
+        
+        case AST_SUPER_CALL:
+            if (node->as.super_call.method_name) free(node->as.super_call.method_name);
+            if (node->as.super_call.arguments) {
+                for (int i = 0; i < node->as.super_call.arg_count; i++) {
+                    xr_ast_free(X, node->as.super_call.arguments[i]);
+                }
+                free(node->as.super_call.arguments);
+            }
+            break;
+        
+        case AST_MEMBER_SET:
+            if (node->as.member_set.member) free(node->as.member_set.member);
+            if (node->as.member_set.object) xr_ast_free(X, node->as.member_set.object);
+            if (node->as.member_set.value) xr_ast_free(X, node->as.member_set.value);
+            break;
+        
         case AST_INDEX_GET:
             /* 释放数组和索引表达式 */
             xr_ast_free(X, node->as.index_get.array);
@@ -827,6 +998,13 @@ const char *xr_ast_typename(AstNodeType type) {
         case AST_INDEX_SET:         return "IndexSet";
         case AST_MEMBER_ACCESS:     return "MemberAccess";
         case AST_TEMPLATE_STRING:   return "TemplateString";
+        case AST_CLASS_DECL:        return "ClassDecl";
+        case AST_FIELD_DECL:        return "FieldDecl";
+        case AST_METHOD_DECL:       return "MethodDecl";
+        case AST_NEW_EXPR:          return "NewExpr";
+        case AST_THIS_EXPR:         return "ThisExpr";
+        case AST_SUPER_CALL:        return "SuperCall";
+        case AST_MEMBER_SET:        return "MemberSet";
         case AST_PROGRAM:           return "Program";
         default:                    return "Unknown";
     }

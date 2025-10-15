@@ -125,9 +125,19 @@ XrTypeInfo* xr_typeof(const XrValue *v) {
     }
     return &xr_builtin_any_type;
 #else
-    /* Tagged Union模式：直接返回 */
-    assert(v->type_info != NULL);
-    return v->type_info;
+    /* Tagged Union模式：返回type_info，如果为NULL则返回默认类型 */
+    if (v->type_info != NULL) {
+        return v->type_info;
+    }
+    /* 根据基本类型返回内置类型 */
+    switch (v->type) {
+        case XR_TNULL:     return &xr_builtin_null_type;
+        case XR_TBOOL:     return &xr_builtin_bool_type;
+        case XR_TINT:      return &xr_builtin_int_type;
+        case XR_TFLOAT:    return &xr_builtin_float_type;
+        case XR_TSTRING:   return &xr_builtin_string_type;
+        default:           return &xr_builtin_any_type;
+    }
 #endif
 }
 
@@ -168,6 +178,7 @@ const char* xr_typename(XrType type) {
         case XR_TSET:      return "set";
         case XR_TMAP:      return "map";
         case XR_TCLASS:    return "class";
+        case XR_TINSTANCE: return "instance";
         default:           return "unknown";
     }
 }
@@ -379,5 +390,91 @@ struct XrMap* xr_value_to_map(XrValue v) {
 #else
     if (v.type != XR_TMAP) return NULL;
     return (struct XrMap*)v.as.obj;
+#endif
+}
+
+/* ========== OOP值操作（v0.12.0新增）========== */
+
+/*
+** 从类对象创建值
+*/
+XrValue xr_value_from_class(struct XrClass *cls) {
+#if XR_NAN_TAGGING
+    return XR_OBJ_TO_VAL(cls);
+#else
+    /* Tagged Union模式 */
+    XrValue v;
+    v.type = XR_TCLASS;
+    v.type_info = NULL;  /* 类对象的类型信息 */
+    v.as.obj = cls;
+    return v;
+#endif
+}
+
+/*
+** 检查值是否为类对象
+*/
+bool xr_value_is_class(XrValue v) {
+#if XR_NAN_TAGGING
+    if (!XR_IS_OBJ(v)) return false;
+    XrObject *obj = (XrObject*)XR_TO_OBJ(v);
+    return obj->type == XR_TCLASS;
+#else
+    return v.type == XR_TCLASS;
+#endif
+}
+
+/*
+** 从值中提取类对象
+*/
+struct XrClass* xr_value_to_class(XrValue v) {
+#if XR_NAN_TAGGING
+    if (!XR_IS_OBJ(v)) return NULL;
+    return (struct XrClass*)XR_TO_OBJ(v);
+#else
+    if (v.type != XR_TCLASS) return NULL;
+    return (struct XrClass*)v.as.obj;
+#endif
+}
+
+/*
+** 从实例对象创建值
+*/
+XrValue xr_value_from_instance(struct XrInstance *inst) {
+#if XR_NAN_TAGGING
+    return XR_OBJ_TO_VAL(inst);
+#else
+    /* Tagged Union模式 */
+    XrValue v;
+    v.type = XR_TINSTANCE;
+    v.type_info = NULL;  /* TODO: 实例类型信息 */
+    v.as.obj = inst;
+    return v;
+#endif
+}
+
+/*
+** 检查值是否为实例对象
+*/
+bool xr_value_is_instance(XrValue v) {
+#if XR_NAN_TAGGING
+    if (!XR_IS_OBJ(v)) return false;
+    XrObject *obj = (XrObject*)XR_TO_OBJ(v);
+    return obj->type == XR_TINSTANCE;
+#else
+    return v.type == XR_TINSTANCE;
+#endif
+}
+
+/*
+** 从值中提取实例对象
+*/
+struct XrInstance* xr_value_to_instance(XrValue v) {
+#if XR_NAN_TAGGING
+    if (!XR_IS_OBJ(v)) return NULL;
+    return (struct XrInstance*)XR_TO_OBJ(v);
+#else
+    if (v.type != XR_TINSTANCE) return NULL;
+    return (struct XrInstance*)v.as.obj;
 #endif
 }

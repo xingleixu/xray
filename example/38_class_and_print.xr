@@ -1,0 +1,7 @@
+// 测试：类定义后可以执行其他语句
+class Test {
+    x: int
+}
+
+print("Success!")
+

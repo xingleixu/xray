@@ -1,0 +1,10 @@
+// 测试：两个方法
+class Test {
+    foo() {
+        print("foo")
+    }
+    bar() {
+        print("bar")
+    }
+}
+

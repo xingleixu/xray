@@ -48,6 +48,13 @@ XrValue xr_eval(XrayState *X, AstNode *node);
 */
 XrValue xr_eval_with_symbols(XrayState *X, AstNode *node, XSymbolTable *symbols);
 
+/*
+** 内部求值函数（v0.12.0: 供OOP模块使用）
+** 支持loop和return控制
+*/
+XrValue xr_eval_internal(XrayState *X, AstNode *node, XSymbolTable *symbols, 
+                         LoopControl *loop, ReturnControl *ret);
+
 /* ========== 内部求值函数（供 xeval.c 内部使用）========== */
 /* 这些函数现在是 xeval.c 的内部静态函数，不对外暴露 */
 
@@ -77,6 +84,17 @@ XrValue xr_eval_function_decl(XrayState *X, AstNode *node, XSymbolTable *symbols
 XrValue xr_eval_function_expr(XrayState *X, AstNode *node, XSymbolTable *symbols);
 XrValue xr_eval_call_expr(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret);
 XrValue xr_eval_return_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret);
+
+/*
+** 调用函数（供OOP系统使用）
+** 
+** @param func          函数对象
+** @param args          参数数组
+** @param arg_count     参数数量
+** @param parent_symbols 父符号表
+** @return              返回值
+*/
+XrValue xr_eval_call_function(XrFunction *func, XrValue *args, int arg_count, XSymbolTable *parent_symbols);
 
 /*
 ** 数组相关求值
@@ -141,6 +159,34 @@ int xr_values_equal(XrValue a, XrValue b);
 ** 值转字符串（用于打印和错误信息）
 */
 const char *xr_value_to_string(XrayState *X, XrValue value);
+
+/* ========== OOP求值函数（v0.12.0新增）========== */
+
+/*
+** 求值类声明
+*/
+XrValue xr_eval_class_decl(XrayState *X, AstNode *node, XSymbolTable *symbols);
+
+/*
+** 求值new表达式
+*/
+XrValue xr_eval_new_expr(XrayState *X, AstNode *node, XSymbolTable *symbols);
+
+/*
+** 求值this表达式
+*/
+XrValue xr_eval_this_expr(XrayState *X, AstNode *node, XSymbolTable *symbols);
+
+/*
+** 求值super调用
+*/
+XrValue xr_eval_super_call(XrayState *X, AstNode *node, XSymbolTable *symbols);
+
+/*
+** 求值成员赋值
+*/
+XrValue xr_eval_member_set(XrayState *X, AstNode *node, XSymbolTable *symbols, 
+                           LoopControl *loop, ReturnControl *ret);
 
 /* ========== 错误处理 ========== */
 

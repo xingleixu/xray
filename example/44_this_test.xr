@@ -1,0 +1,17 @@
+// 测试this.field赋值
+class Counter {
+    count: int
+    
+    constructor(initial: int) {
+        this.count = initial
+    }
+}
+
+let c1 = new Counter(5)
+print("c1.count = ")
+print(c1.count)
+
+let c2 = new Counter(10)
+print("c2.count = ")
+print(c2.count)
+

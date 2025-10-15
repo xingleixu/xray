@@ -30,6 +30,9 @@ typedef enum {
     OBJ_FN_PROTO,
     OBJ_ARRAY,
     OBJ_MAP,
+    OBJ_CLASS,        /* 类对象（v0.12.0新增）*/
+    OBJ_INSTANCE,     /* 实例对象（v0.12.0新增）*/
+    OBJ_METHOD,       /* 方法对象（v0.12.0新增）*/
     /* ... 其他类型 */
 } ObjectType;
 

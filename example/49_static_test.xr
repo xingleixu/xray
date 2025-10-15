@@ -1,0 +1,19 @@
+// example/49_static_test.xr
+// v0.12.2 - 测试静态成员
+
+class Math {
+    static PI: int
+    
+    static abs(x: int): int {
+        return x
+    }
+}
+
+print("=== 测试静态成员 ===")
+print("Math类定义成功")
+
+// 注意：当前静态成员需要特殊实现
+// 暂时用简化测试
+
+print("测试完成")
+

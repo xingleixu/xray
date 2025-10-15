@@ -1,0 +1,39 @@
+// example/43_constructor.xr
+// 测试构造函数和this.field赋值
+
+class Point {
+    x: int
+    y: int
+    
+    constructor(px: int, py: int) {
+        this.x = px
+        this.y = py
+    }
+    
+    display() {
+        print("Point(")
+        print(this.x)
+        print(", ")
+        print(this.y)
+        print(")")
+    }
+}
+
+print("=== 测试构造函数 ===")
+let p = new Point(10, 20)
+print("Point实例创建成功，参数：x=10, y=20")
+
+print("")
+print("=== 测试字段访问 ===")
+print("p.x = ")
+print(p.x)
+print("p.y = ")
+print(p.y)
+
+print("")
+print("=== 测试方法调用 ===")
+p.display()
+
+print("")
+print("=== 所有测试通过！===")
+

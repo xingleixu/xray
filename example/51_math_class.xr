@@ -1,0 +1,52 @@
+// example/51_math_class.xr
+// v0.12.2 - 完整的Math工具类示例
+
+class MathUtils {
+    static abs(x: int): int {
+        if (x < 0) {
+            return 0 - x
+        }
+        return x
+    }
+    
+    static max(a: int, b: int): int {
+        if (a > b) {
+            return a
+        }
+        return b
+    }
+    
+    static min(a: int, b: int): int {
+        if (a < b) {
+            return a
+        }
+        return b
+    }
+}
+
+print("=== MathUtils测试 ===")
+print("")
+
+print("abs(-42) = ")
+print(MathUtils.abs(-42))
+
+print("abs(15) = ")
+print(MathUtils.abs(15))
+
+print("")
+print("max(10, 20) = ")
+print(MathUtils.max(10, 20))
+
+print("max(50, 30) = ")
+print(MathUtils.max(50, 30))
+
+print("")
+print("min(10, 20) = ")
+print(MathUtils.min(10, 20))
+
+print("min(50, 30) = ")
+print(MathUtils.min(50, 30))
+
+print("")
+print("=== 所有静态方法测试通过！===")
+

@@ -147,13 +147,23 @@ static TokenType identifier_type(Scanner *scanner) {
                                     if (scanner->current - scanner->start == 5) {
                                         return check_keyword(scanner, 2, 3, "nst", TK_CONST);
                                     }
-                                    return check_keyword(scanner, 2, 6, "ntinue", TK_CONTINUE);
+                                    if (scanner->current - scanner->start == 8) {
+                                        return check_keyword(scanner, 2, 6, "ntinue", TK_CONTINUE);
+                                    }
+                                    return check_keyword(scanner, 2, 9, "nstructor", TK_CONSTRUCTOR);
                             }
                         }
                 }
             }
             break;
-        case 'e': return check_keyword(scanner, 1, 3, "lse", TK_ELSE);
+        case 'e':
+            if (scanner->current - scanner->start > 1) {
+                switch (scanner->start[1]) {
+                    case 'l': return check_keyword(scanner, 1, 3, "lse", TK_ELSE);
+                    case 'x': return check_keyword(scanner, 1, 6, "xtends", TK_EXTENDS);
+                }
+            }
+            break;
         case 'f':
             if (scanner->current - scanner->start > 1) {
                 switch (scanner->start[1]) {
@@ -164,6 +174,7 @@ static TokenType identifier_type(Scanner *scanner) {
                 }
             }
             break;
+        case 'g': return check_keyword(scanner, 1, 2, "et", TK_GET);
         case 'i':
             if (scanner->current - scanner->start > 1) {
                 switch (scanner->start[1]) {
@@ -181,8 +192,31 @@ static TokenType identifier_type(Scanner *scanner) {
                 }
             }
             break;
+        case 'p':
+            if (scanner->current - scanner->start > 1) {
+                switch (scanner->start[1]) {
+                    case 'r': return check_keyword(scanner, 2, 5, "ivate", TK_PRIVATE);
+                    case 'u': return check_keyword(scanner, 2, 4, "blic", TK_PUBLIC);
+                }
+            }
+            break;
         case 'r': return check_keyword(scanner, 1, 5, "eturn", TK_RETURN);
-        case 's': return check_keyword(scanner, 1, 5, "tring", TK_TYPE_STRING);
+        case 's':
+            if (scanner->current - scanner->start > 1) {
+                switch (scanner->start[1]) {
+                    case 'e': return check_keyword(scanner, 2, 1, "t", TK_SET);
+                    case 't':
+                        if (scanner->current - scanner->start > 2) {
+                            switch (scanner->start[2]) {
+                                case 'a': return check_keyword(scanner, 1, 5, "tatic", TK_STATIC);  /* 修复：st+atic */
+                                case 'r': return check_keyword(scanner, 1, 5, "tring", TK_TYPE_STRING);  /* 修复：st+ring */
+                            }
+                        }
+                        break;
+                    case 'u': return check_keyword(scanner, 2, 3, "per", TK_SUPER);
+                }
+            }
+            break;
         case 't':
             if (scanner->current - scanner->start > 1) {
                 switch (scanner->start[1]) {
@@ -409,9 +443,17 @@ const char *xr_token_name(TokenType type) {
         case TK_TRUE: return "true";
         case TK_FALSE: return "false";
         case TK_CLASS: return "class";
+        case TK_EXTENDS: return "extends";
         case TK_FUNCTION: return "function";
         case TK_NEW: return "new";
         case TK_THIS: return "this";
+        case TK_SUPER: return "super";
+        case TK_CONSTRUCTOR: return "constructor";
+        case TK_STATIC: return "static";
+        case TK_PRIVATE: return "private";
+        case TK_PUBLIC: return "public";
+        case TK_GET: return "get";
+        case TK_SET: return "set";
         /* 类型关键字 */
         case TK_VOID: return "void";
         case TK_BOOL: return "bool";

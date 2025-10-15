@@ -1,0 +1,18 @@
+// 完全不带private的测试
+class Test {
+    value: int
+    
+    setValue(v: int) {
+        this.value = v
+    }
+    
+    getValue(): int {
+        return this.value
+    }
+}
+
+let t = new Test()
+t.setValue(100)
+print("value = ")
+print(t.getValue())
+

@@ -176,3 +176,19 @@ int xr_callstack_depth(CallStack *stack) {
     return stack->depth;
 }
 
+/* ========== 状态机操作实现 ========== */
+
+/*
+** 创建新的Xray状态机（简化版，用于测试）
+*/
+XrayState* xr_state_new(void) {
+    return xray_newstate();
+}
+
+/*
+** 释放Xray状态机（简化版，用于测试）
+*/
+void xr_state_free(XrayState *X) {
+    xray_close(X);
+}
+

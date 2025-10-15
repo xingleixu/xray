@@ -1,0 +1,11 @@
+// 测试带类型的参数
+class Test {
+    printValue(v: int) {
+        print("Value:")
+        print(v)
+    }
+}
+
+let t = new Test()
+t.printValue(123)
+

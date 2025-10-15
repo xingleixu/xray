@@ -1,0 +1,35 @@
+// example/50_static_members.xr
+// v0.12.2 - 测试静态成员
+
+class MathUtils {
+    static PI: int
+    
+    static abs(x: int): int {
+        if (x < 0) {
+            return 0 - x
+        }
+        return x
+    }
+    
+    static max(a: int, b: int): int {
+        if (a > b) {
+            return a
+        }
+        return b
+    }
+}
+
+print("=== 测试静态成员 ===")
+print("")
+
+print("测试1: 静态方法调用")
+print("abs(-42) = ")
+print(MathUtils.abs(-42))
+
+print("")
+print("max(10, 20) = ")
+print(MathUtils.max(10, 20))
+
+print("")
+print("=== 静态成员测试完成！===")
+

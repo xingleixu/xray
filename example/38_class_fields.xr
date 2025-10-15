@@ -1,0 +1,10 @@
+// example/38_class_fields.xr
+// 测试带字段的类
+
+class Point {
+    x: int
+    y: int
+}
+
+print("Point class with fields defined!")
+

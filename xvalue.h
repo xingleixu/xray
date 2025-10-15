@@ -42,7 +42,8 @@ typedef enum {
     XR_TARRAY,      /* 数组类型 */
     XR_TSET,        /* 集合类型 */
     XR_TMAP,        /* 映射类型 */
-    XR_TCLASS       /* 类类型 */
+    XR_TCLASS,      /* 类类型（v0.12.0新增）*/
+    XR_TINSTANCE    /* 实例类型（v0.12.0新增）*/
 } XrType;
 
 /*
@@ -228,11 +229,26 @@ XrValue xr_value_from_map(struct XrMap *map);
 bool xr_value_is_map(XrValue v);
 struct XrMap* xr_value_to_map(XrValue v);
 
+/* OOP值操作（v0.12.0）*/
+struct XrClass;     /* 前向声明 */
+struct XrInstance;  /* 前向声明 */
+XrValue xr_value_from_class(struct XrClass *cls);
+bool xr_value_is_class(XrValue v);
+struct XrClass* xr_value_to_class(XrValue v);
+
+XrValue xr_value_from_instance(struct XrInstance *inst);
+bool xr_value_is_instance(XrValue v);
+struct XrInstance* xr_value_to_instance(XrValue v);
+
 /* 便捷宏 */
 #define xr_is_array(v)    xr_value_is_array(v)
 #define xr_to_array(v)    xr_value_to_array(v)
 #define xr_is_map(v)      xr_value_is_map(v)
 #define xr_to_map(v)      xr_value_to_map(v)
+#define xr_is_class(v)    xr_value_is_class(v)
+#define xr_to_class(v)    xr_value_to_class(v)
+#define xr_is_instance(v) xr_value_is_instance(v)
+#define xr_to_instance(v) xr_value_to_instance(v)
 
 /* 对象头部操作 */
 void xr_object_init(XrObject *obj, XrType type, XrTypeInfo *type_info);

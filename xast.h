@@ -89,6 +89,15 @@ typedef enum {
     /* Map相关节点 */
     AST_MAP_LITERAL,        /* Map字面量：{a: 1, b: 2} */
     
+    /* OOP相关节点（v0.12.0新增）*/
+    AST_CLASS_DECL,         /* class声明：class Dog extends Animal {...} */
+    AST_FIELD_DECL,         /* 字段声明：name: string */
+    AST_METHOD_DECL,        /* 方法声明：greet() {...} */
+    AST_NEW_EXPR,           /* new表达式：new Dog("Rex") */
+    AST_THIS_EXPR,          /* this表达式 */
+    AST_SUPER_CALL,         /* super调用：super.greet() 或 super(args) */
+    AST_MEMBER_SET,         /* 成员赋值：obj.field = value */
+    
     /* 程序节点 */
     AST_PROGRAM             /* 程序根节点 */
 } AstNodeType;
@@ -309,6 +318,87 @@ typedef struct {
 } MapLiteralNode;
 
 /*
+** 类声明节点（v0.12.0 第12阶段新增）
+** class Dog extends Animal { ... }
+*/
+typedef struct {
+    char *name;             /* 类名："Dog" */
+    char *super_name;       /* 超类名："Animal"（可选）*/
+    AstNode **fields;       /* 字段声明数组 */
+    int field_count;        /* 字段数量 */
+    AstNode **methods;      /* 方法声明数组 */
+    int method_count;       /* 方法数量 */
+} ClassDeclNode;
+
+/*
+** 字段声明节点（v0.12.0）
+** name: string 或 private age: int
+*/
+typedef struct {
+    char *name;             /* 字段名 */
+    char *type_name;        /* 类型名（可选）*/
+    bool is_private;        /* 是否私有 */
+    bool is_static;         /* 是否静态 */
+    AstNode *initializer;   /* 初始值（可选）*/
+} FieldDeclNode;
+
+/*
+** 方法声明节点（v0.12.0）
+** greet() { ... } 或 constructor(name) { ... }
+*/
+typedef struct {
+    char *name;             /* 方法名 */
+    char **parameters;      /* 参数列表 */
+    char **param_types;     /* 参数类型列表（可选）*/
+    int param_count;        /* 参数数量 */
+    char *return_type;      /* 返回类型（可选）*/
+    AstNode *body;          /* 方法体 */
+    bool is_constructor;    /* 是否构造函数 */
+    bool is_static;         /* 是否静态方法 */
+    bool is_private;        /* 是否私有方法 */
+    bool is_getter;         /* 是否getter */
+    bool is_setter;         /* 是否setter */
+} MethodDeclNode;
+
+/*
+** new表达式节点（v0.12.0）
+** new Dog("Rex", "Labrador")
+*/
+typedef struct {
+    char *class_name;       /* 类名 */
+    AstNode **arguments;    /* 构造参数 */
+    int arg_count;          /* 参数数量 */
+} NewExprNode;
+
+/*
+** this表达式节点（v0.12.0）
+** this
+*/
+typedef struct {
+    int placeholder;        /* this不需要额外数据 */
+} ThisExprNode;
+
+/*
+** super调用节点（v0.12.0）
+** super.greet() 或 super(args)
+*/
+typedef struct {
+    char *method_name;      /* 方法名（NULL表示super构造函数）*/
+    AstNode **arguments;    /* 参数列表 */
+    int arg_count;          /* 参数数量 */
+} SuperCallNode;
+
+/*
+** 成员赋值节点（v0.12.0）
+** obj.field = value
+*/
+typedef struct {
+    AstNode *object;        /* 对象表达式 */
+    char *member;           /* 成员名 */
+    AstNode *value;         /* 赋值表达式 */
+} MemberSetNode;
+
+/*
 ** AST 节点通用结构
 ** 所有节点类型的基础
 */
@@ -343,6 +433,13 @@ struct AstNode {
         MemberAccessNode member_access; /* 成员访问 */
         TemplateStringNode template_str;  /* 模板字符串（v0.10.0）*/
         MapLiteralNode map_literal;  /* Map字面量（v0.11.0）*/
+        ClassDeclNode class_decl;   /* 类声明（v0.12.0）*/
+        FieldDeclNode field_decl;   /* 字段声明（v0.12.0）*/
+        MethodDeclNode method_decl; /* 方法声明（v0.12.0）*/
+        NewExprNode new_expr;       /* new表达式（v0.12.0）*/
+        ThisExprNode this_expr;     /* this表达式（v0.12.0）*/
+        SuperCallNode super_call;   /* super调用（v0.12.0）*/
+        MemberSetNode member_set;   /* 成员赋值（v0.12.0）*/
         ProgramNode program;        /* 程序 */
     } as;
 };
@@ -448,6 +545,40 @@ AstNode *xr_ast_index_set(XrayState *X, AstNode *array, AstNode *index, AstNode 
 
 /* 创建成员访问节点 */
 AstNode *xr_ast_member_access(XrayState *X, AstNode *object, const char *name, int line);
+
+/* ========== OOP AST节点创建函数（v0.12.0）========== */
+
+/* 创建类声明节点 */
+AstNode *xr_ast_class_decl(XrayState *X, const char *name, const char *super_name,
+                           AstNode **fields, int field_count,
+                           AstNode **methods, int method_count, int line);
+
+/* 创建字段声明节点 */
+AstNode *xr_ast_field_decl(XrayState *X, const char *name, const char *type_name,
+                           bool is_private, bool is_static,
+                           AstNode *initializer, int line);
+
+/* 创建方法声明节点 */
+AstNode *xr_ast_method_decl(XrayState *X, const char *name,
+                            char **parameters, char **param_types, int param_count,
+                            const char *return_type, AstNode *body,
+                            bool is_constructor, bool is_static, bool is_private,
+                            bool is_getter, bool is_setter, int line);
+
+/* 创建new表达式节点 */
+AstNode *xr_ast_new_expr(XrayState *X, const char *class_name,
+                         AstNode **arguments, int arg_count, int line);
+
+/* 创建this表达式节点 */
+AstNode *xr_ast_this_expr(XrayState *X, int line);
+
+/* 创建super调用节点 */
+AstNode *xr_ast_super_call(XrayState *X, const char *method_name,
+                           AstNode **arguments, int arg_count, int line);
+
+/* 创建成员赋值节点 */
+AstNode *xr_ast_member_set(XrayState *X, AstNode *object, const char *member,
+                           AstNode *value, int line);
 
 /* 释放 AST 节点 */
 void xr_ast_free(XrayState *X, AstNode *node);

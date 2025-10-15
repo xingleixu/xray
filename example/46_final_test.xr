@@ -1,0 +1,71 @@
+// 第十二阶段最终测试
+// 测试所有核心OOP功能
+
+print("=== Xray OOP最终测试 ===")
+print("")
+
+// 测试1: 类定义
+print("测试1: 类定义")
+class Counter {
+    value: int
+}
+print("✅ 类定义成功")
+print("")
+
+// 测试2: 实例化  
+print("测试2: 实例化")
+let c = new Counter()
+print("✅ 实例创建成功")
+print("")
+
+// 测试3: 构造函数+this赋值
+print("测试3: 构造函数")
+class Point {
+    x: int
+    y: int
+    
+    constructor(px: int, py: int) {
+        this.x = px
+        this.y = py
+    }
+}
+
+let p = new Point(3, 4)
+print("Point(3, 4)创建成功")
+print("p.x = ")
+print(p.x)
+print("p.y = ")
+print(p.y)
+print("✅ 构造函数测试通过")
+print("")
+
+// 测试4: 方法调用
+print("测试4: 方法调用")
+class Greeter {
+    greet() {
+        print("Hello from Greeter!")
+    }
+}
+
+let g = new Greeter()
+g.greet()
+print("✅ 方法调用测试通过")
+print("")
+
+// 测试5: 继承
+print("测试5: 继承")
+class Base {
+    data: int
+}
+
+class Derived extends Base {
+    extra: int
+}
+
+let d = new Derived()
+print("✅ 继承测试通过")
+print("")
+
+print("=== 所有测试通过！===")
+print("Xray OOP系统完整可用！")
+

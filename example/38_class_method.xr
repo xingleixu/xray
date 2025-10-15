@@ -1,0 +1,19 @@
+// example/38_class_method.xr
+// 测试类方法（无参数，无this）
+
+class Greeter {
+    sayHello() {
+        print("Hello from Greeter!")
+    }
+    
+    sayGoodbye() {
+        print("Goodbye!")
+    }
+}
+
+print("Greeter class defined!")
+
+// 创建实例
+let greeter = new Greeter()
+print("Instance created!")
+

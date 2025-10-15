@@ -14,12 +14,14 @@
 #include "xarray.h"  /* 第九阶段新增：数组支持 */
 #include "xstring.h" /* 第十阶段新增：字符串支持 */
 #include "xmap.h"    /* 第十一阶段新增：Map支持 */
+#include "xinstance.h" /* 第十二阶段新增：OOP支持 */
+#include "xmethod.h"   /* v0.12.2: 静态方法调用 */
 
 /* 最大调用深度（防止栈溢出） */
 #define MAX_CALL_DEPTH 1000
 
-/* 内部求值函数前向声明 */
-static XrValue xr_eval_internal(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret);
+/* 内部求值函数前向声明（v0.12.0: 改为非static，供OOP模块使用） */
+XrValue xr_eval_internal(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret);
 static XrValue xr_eval_literal(XrayState *X, AstNode *node);
 static XrValue xr_eval_binary(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret);
 static XrValue xr_eval_unary(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret);
@@ -87,8 +89,9 @@ XrValue xr_eval_with_symbols(XrayState *X, AstNode *node, XSymbolTable *symbols)
 /*
 ** 内部求值函数 - AST 访问者模式的核心
 ** 根据节点类型分发到相应的处理函数
+** v0.12.0: 改为非static，供OOP模块使用
 */
-static XrValue xr_eval_internal(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret) {
+XrValue xr_eval_internal(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret) {
     if (node == NULL) {
         return xr_null();  /* 新API */
     }
@@ -198,6 +201,27 @@ static XrValue xr_eval_internal(XrayState *X, AstNode *node, XSymbolTable *symbo
         /* Map相关节点（第十一阶段新增） */
         case AST_MAP_LITERAL:
             return xr_eval_map_literal(X, node, symbols, loop, ret);
+        
+        /* OOP相关节点（v0.12.0新增）*/
+        case AST_CLASS_DECL:
+            return xr_eval_class_decl(X, node, symbols);
+        
+        case AST_NEW_EXPR:
+            return xr_eval_new_expr(X, node, symbols);
+        
+        case AST_THIS_EXPR:
+            return xr_eval_this_expr(X, node, symbols);
+        
+        case AST_SUPER_CALL:
+            return xr_eval_super_call(X, node, symbols);
+        
+        case AST_MEMBER_SET:
+            return xr_eval_member_set(X, node, symbols, loop, ret);
+        
+        /* 字段和方法声明不直接求值 */
+        case AST_FIELD_DECL:
+        case AST_METHOD_DECL:
+            return xr_null();
         
         case AST_PROGRAM:
             return xr_eval_program(X, node, symbols, loop, ret);
@@ -1396,13 +1420,31 @@ XrValue xr_eval_index_set(XrayState *X, AstNode *node, XSymbolTable *symbols, Lo
 
 /*
 ** 求值成员访问
-** arr.length, str.length (v0.10.0新增字符串支持)
+** arr.length, str.length, obj.field (v0.10.0新增字符串，v0.12.0新增实例)
 */
 XrValue xr_eval_member_access(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret) {
     MemberAccessNode *member = &node->as.member_access;
     
     /* 求值对象表达式 */
     XrValue obj_val = xr_eval_internal(X, member->object, symbols, loop, ret);
+    
+    /* 类对象（v0.12.2新增：静态成员访问）*/
+    if (xr_value_is_class(obj_val)) {
+        XrClass *cls = xr_value_to_class(obj_val);
+        
+        /* 获取静态字段值 */
+        XrValue static_val = xr_class_get_static_field(cls, member->name);
+        return static_val;
+    }
+    
+    /* 实例对象（v0.12.0新增）*/
+    if (xr_value_is_instance(obj_val)) {
+        XrInstance *inst = xr_value_to_instance(obj_val);
+        
+        /* 获取字段值 */
+        XrValue field_val = xr_instance_get_field(inst, member->name);
+        return field_val;
+    }
     
     /* 数组对象 */
     if (xr_value_is_array(obj_val)) {
@@ -1451,7 +1493,8 @@ XrValue xr_eval_member_access(XrayState *X, AstNode *node, XSymbolTable *symbols
 ** 求值数组方法调用（第九阶段 Day 6 新增）
 ** v0.10.0: 同时支持字符串方法调用
 ** v0.11.0: 同时支持Map方法调用
-** arr.push(1), arr.pop(), str.charAt(0), map.keys() 等
+** v0.12.0: 同时支持实例方法调用
+** arr.push(1), arr.pop(), str.charAt(0), map.keys(), obj.method() 等
 */
 XrValue xr_eval_array_method_call(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret) {
     CallExprNode *call_node = &node->as.call_expr;
@@ -1459,6 +1502,54 @@ XrValue xr_eval_array_method_call(XrayState *X, AstNode *node, XSymbolTable *sym
     
     /* 求值对象 */
     XrValue obj_val = xr_eval_internal(X, member->object, symbols, loop, ret);
+    
+    /* v0.12.2: 静态方法调用 */
+    if (xr_value_is_class(obj_val)) {
+        XrClass *cls = xr_value_to_class(obj_val);
+        
+        /* 查找静态方法 */
+        XrMethod *method = xr_class_lookup_static_method(cls, member->name);
+        if (!method) {
+            xr_runtime_error(X, node->line, "静态方法 '%s' 不存在", member->name);
+            return xr_null();
+        }
+        
+        /* 求值参数 */
+        XrValue *args = NULL;
+        if (call_node->arg_count > 0) {
+            args = (XrValue*)malloc(sizeof(XrValue) * call_node->arg_count);
+            for (int i = 0; i < call_node->arg_count; i++) {
+                args[i] = xr_eval_internal(X, call_node->arguments[i], symbols, loop, ret);
+            }
+        }
+        
+        /* 调用静态方法（无this绑定） */
+        XrValue result = xr_method_call_static(X, method, args, call_node->arg_count, symbols);
+        
+        if (args) free(args);
+        return result;
+    }
+    
+    /* v0.12.0: 实例方法调用 */
+    if (xr_value_is_instance(obj_val)) {
+        XrInstance *inst = xr_value_to_instance(obj_val);
+        
+        /* 求值参数 */
+        XrValue *args = NULL;
+        if (call_node->arg_count > 0) {
+            args = (XrValue*)malloc(sizeof(XrValue) * call_node->arg_count);
+            for (int i = 0; i < call_node->arg_count; i++) {
+                args[i] = xr_eval_internal(X, call_node->arguments[i], symbols, loop, ret);
+            }
+        }
+        
+        /* 调用实例方法 */
+        XrValue result = xr_instance_call_method(X, inst, member->name, 
+                                                 args, call_node->arg_count, symbols);
+        
+        if (args) free(args);
+        return result;
+    }
     
     /* v0.10.0: 字符串方法调用 */
     if (xr_isstring(obj_val)) {
@@ -2025,6 +2116,7 @@ XrValue xr_eval_string_method_call(XrayState *X, AstNode *node, XSymbolTable *sy
 /*
 ** 辅助函数：调用函数（用于高阶方法）
 ** 简化版本，用于数组方法的回调
+** v0.12.0: 支持this绑定（方法调用）
 */
 XrValue xr_eval_call_function(XrFunction *func, XrValue *args, int arg_count, XSymbolTable *parent_symbols) {
     /* 创建新的符号表用于函数执行 */
@@ -2035,10 +2127,20 @@ XrValue xr_eval_call_function(XrFunction *func, XrValue *args, int arg_count, XS
         func_symbols->current->enclosing = func->closure_scope;
     }
     
-    /* 绑定参数（只绑定实际传入的参数数量） */
-    int params_to_bind = (arg_count < func->param_count) ? arg_count : func->param_count;
+    /* v0.12.0: 检查第一个参数是否是实例（this）*/
+    int param_offset = 0;  /* 参数偏移量 */
+    if (arg_count > 0 && xr_value_is_instance(args[0])) {
+        /* 第一个参数是this，特殊绑定 */
+        xsymboltable_define(func_symbols, "this", args[0], false);
+        param_offset = 1;  /* 后续参数从args[1]开始 */
+    }
+    
+    /* 绑定参数（跳过this）*/
+    int params_to_bind = (arg_count - param_offset < func->param_count) ? 
+                         arg_count - param_offset : func->param_count;
     for (int i = 0; i < params_to_bind; i++) {
-        xsymboltable_define(func_symbols, func->parameters[i], args[i], false);
+        xsymboltable_define(func_symbols, func->parameters[i], 
+                           args[i + param_offset], false);
     }
     
     /* 创建返回控制 */

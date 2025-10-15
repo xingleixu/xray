@@ -69,9 +69,17 @@ static ParseRule rules[] = {
     [TK_TRUE]       = {xr_parse_literal,  NULL,           PREC_NONE},
     [TK_FALSE]      = {xr_parse_literal,  NULL,           PREC_NONE},
     [TK_CLASS]      = {NULL,              NULL,           PREC_NONE},
+    [TK_EXTENDS]    = {NULL,              NULL,           PREC_NONE},
     [TK_FUNCTION]   = {NULL,              NULL,           PREC_NONE},
-    [TK_NEW]        = {NULL,              NULL,           PREC_NONE},
-    [TK_THIS]       = {NULL,              NULL,           PREC_NONE},
+    [TK_NEW]        = {xr_parse_new_expression, NULL,     PREC_NONE},
+    [TK_THIS]       = {xr_parse_this_expression, NULL,    PREC_NONE},
+    [TK_SUPER]      = {xr_parse_super_expression, NULL,   PREC_NONE},
+    [TK_CONSTRUCTOR] = {NULL,              NULL,          PREC_NONE},
+    [TK_STATIC]     = {NULL,              NULL,           PREC_NONE},
+    [TK_PRIVATE]    = {NULL,              NULL,           PREC_NONE},
+    [TK_PUBLIC]     = {NULL,              NULL,           PREC_NONE},
+    [TK_GET]        = {NULL,              NULL,           PREC_NONE},
+    [TK_SET]        = {NULL,              NULL,           PREC_NONE},
     
     /* 字面量和标识符 */
     [TK_INT]        = {xr_parse_literal,  NULL,           PREC_NONE},
@@ -831,9 +839,28 @@ AstNode *xr_parse_assignment(Parser *parser, AstNode *left) {
         
         return node;
     }
+    /* 成员赋值：obj.field = value（v0.12.0新增）*/
+    else if (left->type == AST_MEMBER_ACCESS) {
+        /* 保存对象和成员名 */
+        AstNode *object = left->as.member_access.object;
+        char *member = strdup(left->as.member_access.name);
+        
+        /* 解析赋值表达式 */
+        AstNode *value = xr_parse_expression(parser);
+        
+        /* 创建成员赋值节点 */
+        AstNode *node = xr_ast_member_set(parser->X, object, member, value, line);
+        
+        /* 释放原 member_access 节点（但不释放其子节点） */
+        free(left->as.member_access.name);
+        free(left);
+        free(member);
+        
+        return node;
+    }
     /* 无效的赋值目标 */
     else {
-        xr_parser_error(parser, "赋值目标必须是变量或数组索引");
+        xr_parser_error(parser, "赋值目标必须是变量、数组索引或对象成员");
         xr_ast_free(parser->X, left);
         return NULL;
     }
@@ -1311,9 +1338,14 @@ AstNode *xr_parse_return_statement(Parser *parser) {
 }
 
 /*
-** 解析声明（变量声明、常量声明或语句）
+** 解析声明（变量声明、常量声明、类声明或语句）
 */
 AstNode *xr_parse_declaration(Parser *parser) {
+    /* 类声明（v0.12.0新增）*/
+    if (xr_parser_match(parser, TK_CLASS)) {
+        return xr_parse_class_declaration(parser);
+    }
+    
     /* 函数声明 */
     if (xr_parser_match(parser, TK_FUNCTION)) {
         return xr_parse_function_declaration(parser);

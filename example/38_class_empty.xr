@@ -1,0 +1,8 @@
+// example/38_class_empty.xr  
+// 最简单的类定义测试
+
+class Empty {
+}
+
+print("Empty class defined!")
+

@@ -1,0 +1,7 @@
+// 调试：只有一个方法的类
+class Test {
+    foo() {
+        print("in foo")
+    }
+}
+

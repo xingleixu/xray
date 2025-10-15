@@ -1,0 +1,9 @@
+// 测试new表达式
+class Point {
+    x: int
+    y: int
+}
+
+let p = new Point()
+print("Instance created successfully!")
+

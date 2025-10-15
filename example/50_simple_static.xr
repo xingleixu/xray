@@ -1,0 +1,10 @@
+// 测试最简单的静态方法
+class Test {
+    static foo() {
+        print("Static method foo called!")
+    }
+}
+
+print("Calling static method...")
+Test.foo()
+

@@ -1,0 +1,48 @@
+// example/45_super_test.xr
+// 测试super关键字
+
+class Animal {
+    name: string
+    
+    constructor(n: string) {
+        this.name = n
+    }
+    
+    speak() {
+        print("Animal ")
+        print(this.name)
+        print(" makes a sound")
+    }
+}
+
+class Dog extends Animal {
+    breed: string
+    
+    constructor(n: string, b: string) {
+        super(n)
+        this.breed = b
+    }
+    
+    speak() {
+        super.speak()
+        print("Dog ")
+        print(this.name)
+        print(" barks")
+    }
+}
+
+print("=== 测试super构造函数 ===")
+let dog = new Dog("Rex", "Labrador")
+print("Dog实例创建成功")
+print("dog.name = ")
+print(dog.name)
+print("dog.breed = ")
+print(dog.breed)
+
+print("")
+print("=== 测试super方法调用 ===")
+dog.speak()
+
+print("")
+print("=== 所有super测试通过！===")
+

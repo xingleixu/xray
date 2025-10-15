@@ -166,6 +166,49 @@ AstNode *xr_parse_member_access(Parser *parser, AstNode *object);  /* 成员访�
 */
 XrTypeInfo* xr_parse_type(Parser *parser);
 
+/* ========== OOP解析函数（v0.12.0新增）========== */
+
+/*
+** 解析类声明
+** class Dog extends Animal { fields... methods... }
+*/
+AstNode *xr_parse_class_declaration(Parser *parser);
+
+/*
+** 解析字段声明
+** name: string 或 private age: int = 0
+*/
+AstNode *xr_parse_field_declaration(Parser *parser, bool *is_method_out);
+
+/*
+** 解析方法声明
+** greet() { ... } 或 constructor(name) { ... }
+** 
+** @param name 方法名
+** @param is_private 是否私有
+** @param is_static 是否静态
+*/
+AstNode *xr_parse_method_declaration(Parser *parser, const char *name, 
+                                     bool is_private, bool is_static);
+
+/*
+** 解析new表达式（前缀）
+** new Dog("Rex")
+*/
+AstNode *xr_parse_new_expression(Parser *parser);
+
+/*
+** 解析this表达式（前缀）
+** this
+*/
+AstNode *xr_parse_this_expression(Parser *parser);
+
+/*
+** 解析super调用（前缀）
+** super.greet() 或 super(args)
+*/
+AstNode *xr_parse_super_expression(Parser *parser);
+
 /* ========== 辅助函数（供内部使用）========== */
 
 /* Token操作（简化名称供内部使用） */

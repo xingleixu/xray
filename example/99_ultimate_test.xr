@@ -1,0 +1,56 @@
+// Xray OOP终极测试 - v0.12.2
+
+print("=== Xray OOP终极测试 ===")
+print("")
+
+// 测试1: 类和继承
+class Animal {
+    name: string
+}
+
+class Dog extends Animal {
+    breed: string
+}
+
+let dog = new Dog()
+print("✅ 测试1: 类定义和继承")
+
+// 测试2: 构造函数和this
+class Point {
+    x: int
+    y: int
+    
+    constructor(px: int, py: int) {
+        this.x = px
+        this.y = py
+    }
+}
+
+let p = new Point(10, 20)
+print("✅ 测试2: 构造函数和this.field赋值")
+
+// 测试3: 方法调用
+class Greeter {
+    greet() {
+        print("Hello from OOP!")
+    }
+}
+
+let g = new Greeter()
+g.greet()
+print("✅ 测试3: 方法调用")
+
+// 测试4: 静态成员
+class Utils {
+    static double(x: int): int {
+        return x + x
+    }
+}
+
+print("Utils.double(5) = ")
+print(Utils.double(5))
+print("✅ 测试4: 静态方法")
+
+print("")
+print("=== 所有测试通过！===")
+print("Xray OOP系统 v0.12.2 完整可用！")

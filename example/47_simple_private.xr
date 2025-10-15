@@ -1,0 +1,18 @@
+// 简化的private测试
+class Test {
+    private data: int
+    
+    setData(v: int) {
+        this.data = v
+    }
+    
+    getData(): int {
+        return this.data
+    }
+}
+
+let t = new Test()
+t.setData(42)
+print("data = ")
+print(t.getData())
+

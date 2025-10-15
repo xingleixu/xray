@@ -1,0 +1,43 @@
+// example/47_access_control.xr
+// v0.12.1 - 测试访问控制（private/public）
+
+class BankAccount {
+    private balance: int
+    
+    constructor(initial: int) {
+        this.balance = initial
+    }
+    
+    public deposit(amount: int) {
+        this.balance = this.balance + amount
+        print("Deposited: ")
+        print(amount)
+    }
+    
+    public getBalance(): int {
+        return this.balance
+    }
+}
+
+print("=== 测试访问控制 ===")
+print("")
+
+print("创建账户，初始余额1000")
+let account = new BankAccount(1000)
+
+print("")
+print("测试public方法访问：")
+print("余额: ")
+print(account.getBalance())
+
+print("")
+print("存款500：")
+account.deposit(500)
+
+print("")
+print("存款后余额: ")
+print(account.getBalance())
+
+print("")
+print("=== 访问控制测试完成！===")
+

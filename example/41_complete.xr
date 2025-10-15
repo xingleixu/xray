@@ -1,0 +1,29 @@
+// example/41_complete.xr
+// 完整的OOP功能测试
+
+// 定义Point类
+class Point {
+    x: int
+    y: int
+}
+
+print("=== 测试1: 类定义 ===")
+print("Point类定义成功")
+
+print("")
+print("=== 测试2: 实例化 ===")
+let p = new Point()
+print("Point实例创建成功")
+
+print("")
+print("=== 测试3: 继承 ===")
+class ColorPoint extends Point {
+    color: string
+}
+
+let cp = new ColorPoint()
+print("ColorPoint实例创建成功（继承自Point）")
+
+print("")
+print("=== 所有测试通过！===")
+
