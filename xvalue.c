@@ -336,3 +336,48 @@ struct XrArray* xr_value_to_array(XrValue v) {
     return (struct XrArray*)v.as.obj;
 #endif
 }
+
+/* ========== Map值操作（v0.11.0）========== */
+
+/*
+** 创建Map值
+*/
+XrValue xr_value_from_map(struct XrMap *map) {
+#if XR_NAN_TAGGING
+    /* NaN Tagging模式：对象指针 */
+    return XR_OBJ_TO_VAL(map);
+#else
+    /* Tagged Union模式 */
+    XrValue v;
+    v.type = XR_TMAP;
+    v.type_info = NULL;  /* TODO: Map类型信息 */
+    v.as.obj = map;
+    return v;
+#endif
+}
+
+/*
+** 检查值是否为Map
+*/
+bool xr_value_is_map(XrValue v) {
+#if XR_NAN_TAGGING
+    if (!XR_IS_OBJ(v)) return false;
+    XrObject *obj = (XrObject*)XR_TO_OBJ(v);
+    return obj->type == XR_TMAP;
+#else
+    return v.type == XR_TMAP;
+#endif
+}
+
+/*
+** 从值中提取Map对象
+*/
+struct XrMap* xr_value_to_map(XrValue v) {
+#if XR_NAN_TAGGING
+    if (!XR_IS_OBJ(v)) return NULL;
+    return (struct XrMap*)XR_TO_OBJ(v);
+#else
+    if (v.type != XR_TMAP) return NULL;
+    return (struct XrMap*)v.as.obj;
+#endif
+}

@@ -1,0 +1,102 @@
+/* 37_map_complete.xr - Map完整功能测试
+ * 
+ * 第11阶段 - Map字典完整测试
+ */
+
+print("===== Map完整功能测试 =====")
+print("")
+
+// 1. 创建和基础操作
+print("1. 创建和基础操作:")
+let person = {
+    name: "Alice",
+    age: 30,
+    city: "Beijing"
+}
+
+print("姓名: " + person["name"])
+print("年龄: ")
+print(person["age"])
+print("大小: ")
+print(person.size())
+print("")
+
+// 2. 动态添加和更新
+print("2. 动态添加和更新:")
+person["email"] = "alice@example.com"
+person["age"] = 31
+print("更新后的年龄: ")
+print(person["age"])
+print("新增的邮箱: " + person["email"])
+print("")
+
+// 3. 迭代 - keys
+print("3. 迭代所有键:")
+let all_keys = person.keys()
+for (let i = 0; i < all_keys.length; i = i + 1) {
+    print("  键: " + all_keys[i])
+}
+print("")
+
+// 4. 迭代 - values  
+print("4. 迭代所有值:")
+let all_values = person.values()
+for (let i = 0; i < all_values.length; i = i + 1) {
+    print("  值: ")
+    print(all_values[i])
+}
+print("")
+
+// 5. forEach遍历
+print("5. forEach遍历:")
+person.forEach((value, key) => {
+    print("  " + key + " = ")
+    print(value)
+})
+print("")
+
+// 6. 嵌套Map
+print("6. 嵌套Map:")
+let config = {
+    database: {
+        host: "localhost",
+        port: 5432
+    },
+    cache: {
+        enabled: true,
+        ttl: 3600
+    }
+}
+
+print("数据库主机: " + config["database"]["host"])
+print("数据库端口: ")
+print(config["database"]["port"])
+print("缓存启用: ")
+print(config["cache"]["enabled"])
+print("")
+
+// 7. 复杂操作
+print("7. 复杂操作 - 计算平均分:")
+let scores = {
+    math: 95,
+    english: 88,
+    physics: 92
+}
+
+let total = 0
+let count = scores.size()
+
+scores.forEach((value, key) => {
+    total = total + value
+})
+
+print("总分: ")
+print(total)
+print("科目数: ")
+print(count)
+print("平均分: ")
+print(total / count)
+print("")
+
+print("===== 所有测试完成 =====")
+

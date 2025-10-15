@@ -1,0 +1,21 @@
+feat: 实现字符串增强功能 - v0.10.1
+
+第十阶段完成：
+- 实现完整的字符串对象系统（XrString + StringPool）
+- 实现字符串驻留优化（Lua策略，FNV-1a哈希）
+- 实现18个字符串方法（TypeScript语义）
+  * 基础方法: charAt/substring/indexOf/contains/startsWith/endsWith
+  * 转换方法: toLowerCase/toUpperCase/trim
+  * 高级方法: split/replace/replaceAll/repeat
+  * 数组方法: join（正确归属到array.join）
+- 实现9个转义序列支持（\n \r \t \\ \" \' \b \f \0）
+- 实现模板字符串语法（`Hello, ${name}!`）
+- 字符串成员访问和方法调用集成到求值器
+- 新增51个单元测试，全部通过
+- 新增2个示例程序（33_string_basics.xr, 34_template_strings.xr）
+
+代码量: +2,640行
+新增文件: xstring.h/c, test_string.c, 2个示例程序
+测试: 51个新测试全部通过（300+总测试）
+质量: 0内存泄漏，代码清晰，注释丰富
+

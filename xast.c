@@ -495,6 +495,32 @@ AstNode *xr_ast_array_literal(XrayState *X, AstNode **elements, int count, int l
 }
 
 /*
+** 创建Map字面量节点（v0.11.0）
+** keys: 键表达式数组
+** values: 值表达式数组
+** count: 键值对数量
+*/
+AstNode *xr_ast_map_literal(XrayState *X, AstNode **keys, AstNode **values, int count, int line) {
+    AstNode *node = alloc_node(X, AST_MAP_LITERAL, line);
+    node->as.map_literal.count = count;
+    
+    /* 复制键数组 */
+    if (count > 0) {
+        node->as.map_literal.keys = (AstNode **)malloc(sizeof(AstNode *) * count);
+        node->as.map_literal.values = (AstNode **)malloc(sizeof(AstNode *) * count);
+        for (int i = 0; i < count; i++) {
+            node->as.map_literal.keys[i] = keys[i];
+            node->as.map_literal.values[i] = values[i];
+        }
+    } else {
+        node->as.map_literal.keys = NULL;
+        node->as.map_literal.values = NULL;
+    }
+    
+    return node;
+}
+
+/*
 ** 创建索引访问节点
 ** array: 数组表达式
 ** index: 索引表达式
@@ -701,6 +727,19 @@ void xr_ast_free(XrayState *X, AstNode *node) {
             }
             break;
         
+        /* Map相关节点（v0.11.0）*/
+        case AST_MAP_LITERAL:
+            /* 释放键和值 */
+            if (node->as.map_literal.keys != NULL) {
+                for (int i = 0; i < node->as.map_literal.count; i++) {
+                    xr_ast_free(X, node->as.map_literal.keys[i]);
+                    xr_ast_free(X, node->as.map_literal.values[i]);
+                }
+                free(node->as.map_literal.keys);
+                free(node->as.map_literal.values);
+            }
+            break;
+        
         case AST_INDEX_GET:
             /* 释放数组和索引表达式 */
             xr_ast_free(X, node->as.index_get.array);
@@ -783,6 +822,7 @@ const char *xr_ast_typename(AstNodeType type) {
         case AST_CALL_EXPR:         return "CallExpr";
         case AST_RETURN_STMT:       return "ReturnStmt";
         case AST_ARRAY_LITERAL:     return "ArrayLiteral";
+        case AST_MAP_LITERAL:       return "MapLiteral";
         case AST_INDEX_GET:         return "IndexGet";
         case AST_INDEX_SET:         return "IndexSet";
         case AST_MEMBER_ACCESS:     return "MemberAccess";
@@ -976,6 +1016,19 @@ void xr_ast_print(AstNode *node, int indent) {
                 printf("%*s", (indent + 1) * 2, "");
                 printf("Element %d:", i);
                 xr_ast_print(node->as.array_literal.elements[i], indent + 2);
+            }
+            break;
+        
+        /* Map相关节点（v0.11.0）*/
+        case AST_MAP_LITERAL:
+            printf(" {%d pairs}\n", node->as.map_literal.count);
+            for (int i = 0; i < node->as.map_literal.count; i++) {
+                printf("%*s", (indent + 1) * 2, "");
+                printf("Key %d:", i);
+                xr_ast_print(node->as.map_literal.keys[i], indent + 2);
+                printf("%*s", (indent + 1) * 2, "");
+                printf("Value %d:", i);
+                xr_ast_print(node->as.map_literal.values[i], indent + 2);
             }
             break;
         

@@ -1,0 +1,74 @@
+/* 35_map_basics.xr - Map基础功能测试
+ * 
+ * 第11阶段 - Map字典实现
+ */
+
+print("===== Map基础测试 =====")
+
+// 1. 创建空Map
+let empty = {}
+print("空Map创建成功")
+
+// 2. 字面量创建Map
+let person = {
+    name: "Alice",
+    age: 30,
+    city: "Beijing"
+}
+print("Map字面量创建成功")
+
+// 3. 索引访问（方括号）
+print("姓名: ")
+print(person["name"])
+
+print("年龄: ")
+print(person["age"])
+
+print("城市: ")
+print(person["city"])
+
+// 4. 索引赋值
+person["email"] = "alice@example.com"
+print("添加email后")
+print(person["email"])
+
+// 5. 更新值
+person["age"] = 31
+print("更新年龄后")
+print(person["age"])
+
+// 6. 整数键
+let scores = {
+    1: 90,
+    2: 85,
+    3: 95
+}
+print("成绩1: ")
+print(scores[1])
+print("成绩2: ")
+print(scores[2])
+
+// 7. 混合键类型
+let mixed = {
+    "string_key": 100,
+    42: 200
+}
+print("字符串键: ")
+print(mixed["string_key"])
+print("整数键: ")
+print(mixed[42])
+
+// 8. 嵌套Map
+let config = {
+    database: {
+        host: "localhost",
+        port: 5432
+    }
+}
+print("数据库主机: ")
+print(config["database"]["host"])
+print("数据库端口: ")
+print(config["database"]["port"])
+
+print("===== 所有测试完成 =====")
+

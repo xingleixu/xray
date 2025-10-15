@@ -1,0 +1,67 @@
+/* 36_map_methods.xr - Map方法测试
+ * 
+ * 第11阶段 - Map字典方法
+ */
+
+print("===== Map方法测试 =====")
+
+// 创建Map
+let map = {
+    name: "Alice",
+    age: 30,
+    city: "Beijing"
+}
+
+// 1. size()方法
+print("1. size()方法:")
+print(map.size())
+
+// 2. has()方法
+print("2. has()方法:")
+print(map.has("name"))
+print(map.has("email"))
+
+// 3. get()方法
+print("3. get()方法:")
+print(map.get("name"))
+print(map.get("email"))
+print(map.get("email", "没有邮箱"))
+
+// 4. set()方法
+print("4. set()方法:")
+map.set("email", "alice@example.com")
+print(map.get("email"))
+print(map.size())
+
+// 5. delete()方法
+print("5. delete()方法:")
+print(map.delete("age"))
+print(map.size())
+print(map.has("age"))
+
+// 6. keys()方法
+print("6. keys()方法:")
+let keys = map.keys()
+print("键的数量:")
+print(keys.length)
+
+// 7. values()方法
+print("7. values()方法:")
+let values = map.values()
+print("值的数量:")
+print(values.length)
+
+// 8. entries()方法
+print("8. entries()方法:")
+let entries = map.entries()
+print("键值对数量:")
+print(entries.length)
+
+// 9. clear()方法
+print("9. clear()方法:")
+map.clear()
+print(map.size())
+print(map.has("name"))
+
+print("===== 所有方法测试完成 =====")
+

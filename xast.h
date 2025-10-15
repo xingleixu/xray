@@ -86,6 +86,9 @@ typedef enum {
     AST_INDEX_SET,          /* 索引赋值：arr[0] = 10 */
     AST_MEMBER_ACCESS,      /* 成员访问：arr.length, arr.push */
     
+    /* Map相关节点 */
+    AST_MAP_LITERAL,        /* Map字面量：{a: 1, b: 2} */
+    
     /* 程序节点 */
     AST_PROGRAM             /* 程序根节点 */
 } AstNodeType;
@@ -296,6 +299,16 @@ typedef struct {
 } TemplateStringNode;
 
 /*
+** Map字面量节点（v0.11.0 第11阶段新增）
+** {name: "Alice", age: 30}
+*/
+typedef struct {
+    AstNode **keys;         /* 键表达式数组 */
+    AstNode **values;       /* 值表达式数组 */
+    int count;              /* 键值对数量 */
+} MapLiteralNode;
+
+/*
 ** AST 节点通用结构
 ** 所有节点类型的基础
 */
@@ -329,6 +342,7 @@ struct AstNode {
         IndexSetNode index_set;     /* 索引赋值 */
         MemberAccessNode member_access; /* 成员访问 */
         TemplateStringNode template_str;  /* 模板字符串（v0.10.0）*/
+        MapLiteralNode map_literal;  /* Map字面量（v0.11.0）*/
         ProgramNode program;        /* 程序 */
     } as;
 };
@@ -422,6 +436,9 @@ AstNode *xr_ast_return_stmt(XrayState *X, AstNode *value, int line);
 
 /* 创建数组字面量节点 */
 AstNode *xr_ast_array_literal(XrayState *X, AstNode **elements, int count, int line);
+
+/* 创建Map字面量节点（v0.11.0） */
+AstNode *xr_ast_map_literal(XrayState *X, AstNode **keys, AstNode **values, int count, int line);
 
 /* 创建索引访问节点 */
 AstNode *xr_ast_index_get(XrayState *X, AstNode *array, AstNode *index, int line);

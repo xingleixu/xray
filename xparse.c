@@ -25,12 +25,13 @@ static ParseRule rules[] = {
     /* Token 类型                前缀函数        中缀函数        优先级 */
     [TK_LPAREN]     = {xr_parse_grouping, xr_parse_call_expr, PREC_CALL},
     [TK_RPAREN]     = {NULL,              NULL,           PREC_NONE},
-    [TK_LBRACE]     = {NULL,              NULL,           PREC_NONE},
+    [TK_LBRACE]     = {xr_parse_map_literal, NULL,        PREC_NONE},  /* Map字面量（v0.11.0）*/
     [TK_RBRACE]     = {NULL,              NULL,           PREC_NONE},
     [TK_LBRACKET]   = {xr_parse_array_literal, xr_parse_index_access, PREC_CALL},  
     [TK_RBRACKET]   = {NULL,              NULL,           PREC_NONE},
     [TK_COMMA]      = {NULL,              NULL,           PREC_NONE},
     [TK_DOT]        = {NULL,              xr_parse_member_access, PREC_CALL},  
+    [TK_COLON]      = {NULL,              NULL,           PREC_NONE},  /* : (Map字面量) */
     [TK_SEMICOLON]  = {NULL,              NULL,           PREC_NONE},
     
     /* 算术运算符 */
@@ -1164,6 +1165,86 @@ AstNode *xr_parse_array_literal(Parser *parser) {
     xr_parser_consume(parser, TK_RBRACKET, "期望 ']' 在数组元素后");
     
     return xr_ast_array_literal(parser->X, elements, count, line);
+}
+
+/*
+** 解析Map字面量（前缀）（v0.11.0）
+** {a: 1, b: 2}
+** 
+** 注意：需要区分Map字面量和代码块
+** 判断规则：如果第一个token后面跟着':'，则是Map字面量
+*/
+AstNode *xr_parse_map_literal(Parser *parser) {
+    int line = parser->previous.line;
+    
+    /* 已经消费了 '{' */
+    
+    /* 空Map或空代码块 */
+    if (xr_parser_match(parser, TK_RBRACE)) {
+        /* 空{}在表达式上下文中解析为空Map */
+        return xr_ast_map_literal(parser->X, NULL, NULL, 0, line);
+    }
+    
+    /* 收集键值对 */
+    AstNode **keys = NULL;
+    AstNode **values = NULL;
+    int count = 0;
+    int capacity = 0;
+    
+    do {
+        /* 扩容 */
+        if (count >= capacity) {
+            capacity = capacity == 0 ? 4 : capacity * 2;
+            keys = (AstNode **)realloc(keys, sizeof(AstNode *) * capacity);
+            values = (AstNode **)realloc(values, sizeof(AstNode *) * capacity);
+        }
+        
+        /* 解析键 */
+        AstNode *key = NULL;
+        
+        /* 键可以是：标识符、字符串、数字 */
+        if (xr_parser_check(parser, TK_NAME)) {
+            /* 标识符作为键（转换为字符串） */
+            Token key_token = parser->current;
+            xr_parser_advance(parser);
+            
+            /* 复制标识符字符串 */
+            char *key_str = (char *)malloc(key_token.length + 1);
+            memcpy(key_str, key_token.start, key_token.length);
+            key_str[key_token.length] = '\0';
+            key = xr_ast_literal_string(parser->X, key_str, line);
+            free(key_str);
+        } else if (xr_parser_check(parser, TK_STRING)) {
+            /* 字符串字面量作为键 */
+            xr_parser_advance(parser);
+            key = xr_parse_literal(parser);
+        } else if (xr_parser_check(parser, TK_INT) || xr_parser_check(parser, TK_FLOAT)) {
+            /* 数字字面量作为键 */
+            xr_parser_advance(parser);
+            key = xr_parse_literal(parser);
+        } else {
+            xr_parser_error(parser, "期望标识符、字符串或数字作为Map的键");
+            /* 清理并返回 */
+            if (keys) free(keys);
+            if (values) free(values);
+            return xr_ast_literal_null(parser->X, line);
+        }
+        
+        keys[count] = key;
+        
+        /* 期望冒号 */
+        xr_parser_consume(parser, TK_COLON, "期望 ':' 在Map键之后");
+        
+        /* 解析值表达式 */
+        values[count] = xr_parse_expression(parser);
+        count++;
+        
+    } while (xr_parser_match(parser, TK_COMMA) && !xr_parser_check(parser, TK_RBRACE));
+    
+    /* 期望 '}' */
+    xr_parser_consume(parser, TK_RBRACE, "期望 '}' 在Map字面量末尾");
+    
+    return xr_ast_map_literal(parser->X, keys, values, count, line);
 }
 
 /*

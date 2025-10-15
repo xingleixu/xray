@@ -222,9 +222,17 @@ XrValue xr_value_from_array(struct XrArray *arr);
 bool xr_value_is_array(XrValue v);
 struct XrArray* xr_value_to_array(XrValue v);
 
+/* Map值操作（v0.11.0）*/
+struct XrMap;    /* 前向声明 */
+XrValue xr_value_from_map(struct XrMap *map);
+bool xr_value_is_map(XrValue v);
+struct XrMap* xr_value_to_map(XrValue v);
+
 /* 便捷宏 */
 #define xr_is_array(v)    xr_value_is_array(v)
 #define xr_to_array(v)    xr_value_to_array(v)
+#define xr_is_map(v)      xr_value_is_map(v)
+#define xr_to_map(v)      xr_value_to_map(v)
 
 /* 对象头部操作 */
 void xr_object_init(XrObject *obj, XrType type, XrTypeInfo *type_info);

@@ -13,6 +13,7 @@
 #include "xstate.h"
 #include "xarray.h"  /* 第九阶段新增：数组支持 */
 #include "xstring.h" /* 第十阶段新增：字符串支持 */
+#include "xmap.h"    /* 第十一阶段新增：Map支持 */
 
 /* 最大调用深度（防止栈溢出） */
 #define MAX_CALL_DEPTH 1000
@@ -31,6 +32,12 @@ static XrValue xr_eval_block_internal(XrayState *X, AstNode *node, XSymbolTable 
 static XrValue xr_eval_program(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret);
 static XrValue xr_eval_logical_and(XrayState *X, AstNode *left_node, AstNode *right_node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret);
 static XrValue xr_eval_logical_or(XrayState *X, AstNode *left_node, AstNode *right_node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret);
+
+/* Map求值函数前向声明（v0.11.0）*/
+static XrValue xr_eval_map_literal(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret);
+
+/* 函数调用前向声明 */
+XrValue xr_eval_call_function(XrFunction *func, XrValue *args, int arg_count, XSymbolTable *parent_symbols);
 
 /* ========== 主要求值函数 ========== */
 
@@ -187,6 +194,10 @@ static XrValue xr_eval_internal(XrayState *X, AstNode *node, XSymbolTable *symbo
         
         case AST_MEMBER_ACCESS:
             return xr_eval_member_access(X, node, symbols, loop, ret);
+        
+        /* Map相关节点（第十一阶段新增） */
+        case AST_MAP_LITERAL:
+            return xr_eval_map_literal(X, node, symbols, loop, ret);
         
         case AST_PROGRAM:
             return xr_eval_program(X, node, symbols, loop, ret);
@@ -1276,73 +1287,111 @@ XrValue xr_eval_array_literal(XrayState *X, AstNode *node, XSymbolTable *symbols
     return xr_value_from_array(arr);
 }
 
+/* ========== Map求值函数（第十一阶段新增）========== */
+
+/*
+** 求值Map字面量
+** {name: "Alice", age: 30}
+*/
+static XrValue xr_eval_map_literal(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret) {
+    MapLiteralNode *map_lit = &node->as.map_literal;
+    
+    /* 创建Map对象 */
+    XrMap *map = xr_map_new();
+    
+    /* 求值每个键值对并添加到Map */
+    for (int i = 0; i < map_lit->count; i++) {
+        XrValue key = xr_eval_internal(X, map_lit->keys[i], symbols, loop, ret);
+        XrValue value = xr_eval_internal(X, map_lit->values[i], symbols, loop, ret);
+        xr_map_set(map, key, value);
+    }
+    
+    /* 包装成 XrValue */
+    return xr_value_from_map(map);
+}
+
 /*
 ** 求值索引访问
-** arr[0]
+** arr[0] 或 map["key"]
 */
 XrValue xr_eval_index_get(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret) {
     IndexGetNode *get = &node->as.index_get;
     
-    /* 求值数组表达式 */
-    XrValue arr_val = xr_eval_internal(X, get->array, symbols, loop, ret);
-    if (!xr_value_is_array(arr_val)) {
-        xr_runtime_error(X, node->line, "无法对非数组值进行索引访问");
-        return xr_null();
-    }
+    /* 求值对象表达式（数组或Map） */
+    XrValue obj_val = xr_eval_internal(X, get->array, symbols, loop, ret);
     
-    /* 求值索引表达式 */
+    /* 求值索引/键表达式 */
     XrValue idx_val = xr_eval_internal(X, get->index, symbols, loop, ret);
-    if (!xr_isint(idx_val)) {
-        xr_runtime_error(X, node->line, "数组索引必须是整数");
+    
+    /* 数组索引访问 */
+    if (xr_value_is_array(obj_val)) {
+        if (!xr_isint(idx_val)) {
+            xr_runtime_error(X, node->line, "数组索引必须是整数");
+            return xr_null();
+        }
+        
+        XrArray *arr = xr_value_to_array(obj_val);
+        int index = xr_toint(idx_val);
+        return xr_array_get(arr, index);
+    }
+    /* Map键访问（v0.11.0）*/
+    else if (xr_value_is_map(obj_val)) {
+        XrMap *map = xr_value_to_map(obj_val);
+        bool found;
+        XrValue result = xr_map_get(map, idx_val, &found);
+        return result;  /* 不存在时返回null */
+    }
+    else {
+        xr_runtime_error(X, node->line, "只能对数组或Map进行索引访问");
         return xr_null();
     }
-    
-    /* 获取数组元素 */
-    XrArray *arr = xr_value_to_array(arr_val);
-    int index = xr_toint(idx_val);
-    
-    /* 边界检查（xr_array_get 内部会检查） */
-    return xr_array_get(arr, index);
 }
 
 /*
 ** 求值索引赋值
-** arr[0] = 10
+** arr[0] = 10 或 map["key"] = value
 */
 XrValue xr_eval_index_set(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret) {
     IndexSetNode *set = &node->as.index_set;
     
-    /* 求值数组表达式 */
-    XrValue arr_val = xr_eval_internal(X, set->array, symbols, loop, ret);
-    if (!xr_value_is_array(arr_val)) {
-        xr_runtime_error(X, node->line, "无法对非数组值进行索引赋值");
-        return xr_null();
-    }
+    /* 求值对象表达式（数组或Map） */
+    XrValue obj_val = xr_eval_internal(X, set->array, symbols, loop, ret);
     
-    /* 求值索引表达式 */
+    /* 求值索引/键表达式 */
     XrValue idx_val = xr_eval_internal(X, set->index, symbols, loop, ret);
-    if (!xr_isint(idx_val)) {
-        xr_runtime_error(X, node->line, "数组索引必须是整数");
-        return xr_null();
-    }
     
     /* 求值赋值表达式 */
     XrValue value = xr_eval_internal(X, set->value, symbols, loop, ret);
     
-    /* 设置数组元素 */
-    XrArray *arr = xr_value_to_array(arr_val);
-    int index = xr_toint(idx_val);
-    
-    /* 边界检查 */
-    if (index < 0 || index >= (int)arr->count) {
-        xr_runtime_error(X, node->line, "数组索引越界: %d (数组长度: %zu)", index, arr->count);
+    /* 数组索引赋值 */
+    if (xr_value_is_array(obj_val)) {
+        if (!xr_isint(idx_val)) {
+            xr_runtime_error(X, node->line, "数组索引必须是整数");
+            return xr_null();
+        }
+        
+        XrArray *arr = xr_value_to_array(obj_val);
+        int index = xr_toint(idx_val);
+        
+        /* 边界检查 */
+        if (index < 0 || index >= (int)arr->count) {
+            xr_runtime_error(X, node->line, "数组索引越界: %d (数组长度: %zu)", index, arr->count);
+            return xr_null();
+        }
+        
+        xr_array_set(arr, index, value);
+        return value;
+    }
+    /* Map键赋值（v0.11.0）*/
+    else if (xr_value_is_map(obj_val)) {
+        XrMap *map = xr_value_to_map(obj_val);
+        xr_map_set(map, idx_val, value);
+        return value;
+    }
+    else {
+        xr_runtime_error(X, node->line, "只能对数组或Map进行索引赋值");
         return xr_null();
     }
-    
-    xr_array_set(arr, index, value);
-    
-    /* 返回赋值结果 */
-    return value;
 }
 
 /*
@@ -1383,6 +1432,17 @@ XrValue xr_eval_member_access(XrayState *X, AstNode *node, XSymbolTable *symbols
         return xr_null();
     }
     
+    /* Map对象（v0.11.0新增）*/
+    if (xr_value_is_map(obj_val)) {
+        XrMap *map = xr_value_to_map(obj_val);
+        
+        /* size 属性（注意：是属性不是方法，暂不支持作为属性访问）*/
+        /* 实际的size()方法在AST_CALL_EXPR中处理 */
+        
+        xr_runtime_error(X, node->line, "Map不支持直接属性访问，请使用方法调用");
+        return xr_null();
+    }
+    
     xr_runtime_error(X, node->line, "对象不支持成员访问");
     return xr_null();
 }
@@ -1390,7 +1450,8 @@ XrValue xr_eval_member_access(XrayState *X, AstNode *node, XSymbolTable *symbols
 /*
 ** 求值数组方法调用（第九阶段 Day 6 新增）
 ** v0.10.0: 同时支持字符串方法调用
-** arr.push(1), arr.pop(), str.charAt(0), str.substring(0, 5) 等
+** v0.11.0: 同时支持Map方法调用
+** arr.push(1), arr.pop(), str.charAt(0), map.keys() 等
 */
 XrValue xr_eval_array_method_call(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret) {
     CallExprNode *call_node = &node->as.call_expr;
@@ -1404,9 +1465,150 @@ XrValue xr_eval_array_method_call(XrayState *X, AstNode *node, XSymbolTable *sym
         return xr_eval_string_method_call(X, node, symbols, loop, ret);
     }
     
+    /* v0.11.0: Map方法调用 */
+    if (xr_value_is_map(obj_val)) {
+        XrMap *map = xr_value_to_map(obj_val);
+        const char *method = member->name;
+        
+        /* ===== size() ===== */
+        if (strcmp(method, "size") == 0) {
+            if (call_node->arg_count != 0) {
+                xr_runtime_error(X, node->line, "size()不需要参数");
+                return xr_null();
+            }
+            return xr_int(xr_map_size(map));
+        }
+        
+        /* ===== has(key) ===== */
+        else if (strcmp(method, "has") == 0) {
+            if (call_node->arg_count != 1) {
+                xr_runtime_error(X, node->line, "has()需要1个参数");
+                return xr_null();
+            }
+            XrValue key = xr_eval_internal(X, call_node->arguments[0], symbols, loop, ret);
+            return xr_bool(xr_map_has(map, key));
+        }
+        
+        /* ===== get(key, defaultValue?) ===== */
+        else if (strcmp(method, "get") == 0) {
+            if (call_node->arg_count < 1 || call_node->arg_count > 2) {
+                xr_runtime_error(X, node->line, "get()需要1-2个参数");
+                return xr_null();
+            }
+            XrValue key = xr_eval_internal(X, call_node->arguments[0], symbols, loop, ret);
+            bool found;
+            XrValue result = xr_map_get(map, key, &found);
+            if (!found && call_node->arg_count == 2) {
+                /* 使用默认值 */
+                return xr_eval_internal(X, call_node->arguments[1], symbols, loop, ret);
+            }
+            return result;
+        }
+        
+        /* ===== set(key, value) ===== */
+        else if (strcmp(method, "set") == 0) {
+            if (call_node->arg_count != 2) {
+                xr_runtime_error(X, node->line, "set()需要2个参数");
+                return xr_null();
+            }
+            XrValue key = xr_eval_internal(X, call_node->arguments[0], symbols, loop, ret);
+            XrValue value = xr_eval_internal(X, call_node->arguments[1], symbols, loop, ret);
+            xr_map_set(map, key, value);
+            return obj_val;  /* 返回map本身（链式调用） */
+        }
+        
+        /* ===== delete(key) ===== */
+        else if (strcmp(method, "delete") == 0) {
+            if (call_node->arg_count != 1) {
+                xr_runtime_error(X, node->line, "delete()需要1个参数");
+                return xr_null();
+            }
+            XrValue key = xr_eval_internal(X, call_node->arguments[0], symbols, loop, ret);
+            return xr_bool(xr_map_delete(map, key));
+        }
+        
+        /* ===== clear() ===== */
+        else if (strcmp(method, "clear") == 0) {
+            if (call_node->arg_count != 0) {
+                xr_runtime_error(X, node->line, "clear()不需要参数");
+                return xr_null();
+            }
+            xr_map_clear(map);
+            return xr_null();
+        }
+        
+        /* ===== keys() ===== */
+        else if (strcmp(method, "keys") == 0) {
+            if (call_node->arg_count != 0) {
+                xr_runtime_error(X, node->line, "keys()不需要参数");
+                return xr_null();
+            }
+            XrArray *keys = xr_map_keys(map);
+            return xr_value_from_array(keys);
+        }
+        
+        /* ===== values() ===== */
+        else if (strcmp(method, "values") == 0) {
+            if (call_node->arg_count != 0) {
+                xr_runtime_error(X, node->line, "values()不需要参数");
+                return xr_null();
+            }
+            XrArray *values = xr_map_values(map);
+            return xr_value_from_array(values);
+        }
+        
+        /* ===== entries() ===== */
+        else if (strcmp(method, "entries") == 0) {
+            if (call_node->arg_count != 0) {
+                xr_runtime_error(X, node->line, "entries()不需要参数");
+                return xr_null();
+            }
+            XrArray *entries = xr_map_entries(map);
+            return xr_value_from_array(entries);
+        }
+        
+        /* ===== forEach(callback) ===== */
+        else if (strcmp(method, "forEach") == 0) {
+            if (call_node->arg_count != 1) {
+                xr_runtime_error(X, node->line, "forEach()需要1个参数（回调函数）");
+                return xr_null();
+            }
+            
+            XrValue callback_val = xr_eval_internal(X, call_node->arguments[0], symbols, loop, ret);
+            if (!xr_isfunction(callback_val)) {
+                xr_runtime_error(X, node->line, "forEach()的参数必须是函数");
+                return xr_null();
+            }
+            
+            XrFunction *callback = xr_tofunction(callback_val);
+            
+            /* 遍历所有键值对，调用回调 */
+            for (uint32_t i = 0; i < map->capacity; i++) {
+                /* 检查是否是有效条目（state >= 0x80） */
+                if (map->entries[i].state >= 0x80) {
+                    /* 准备参数：(value, key) */
+                    XrValue args[2];
+                    args[0] = map->entries[i].value;
+                    args[1] = map->entries[i].key;
+                    
+                    /* 调用回调函数 */
+                    xr_eval_call_function(callback, args, 2, symbols);
+                }
+            }
+            
+            return xr_null();
+        }
+        
+        /* 未知方法 */
+        else {
+            xr_runtime_error(X, node->line, "未知的Map方法: %s", method);
+            return xr_null();
+        }
+    }
+    
     /* 数组方法调用 */
     if (!xr_value_is_array(obj_val)) {
-        xr_runtime_error(X, node->line, "只能在数组或字符串上调用方法");
+        xr_runtime_error(X, node->line, "只能在数组、字符串或Map上调用方法");
         return xr_null();
     }
     

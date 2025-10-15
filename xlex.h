@@ -23,6 +23,7 @@ typedef enum {
     TK_RBRACKET = ']',  /* ] */
     TK_COMMA = ',',     /* , */
     TK_DOT = '.',       /* . */
+    TK_COLON = ':',     /* : （v0.11.0 Map字面量）*/
     TK_SEMICOLON = ';', /* ; 用于 for 循环分隔符等 */
     TK_PLUS = '+',      /* + */
     TK_MINUS = '-',     /* - */

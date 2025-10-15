@@ -327,6 +327,7 @@ Token xr_scanner_scan(Scanner *scanner) {
         case ']': return make_token(scanner, TK_RBRACKET);
         case ',': return make_token(scanner, TK_COMMA);
         case '.': return make_token(scanner, TK_DOT);
+        case ':': return make_token(scanner, TK_COLON);  /* v0.11.0 Map字面量 */
         case ';': return make_token(scanner, TK_SEMICOLON);
         case '+': return make_token(scanner, TK_PLUS);
         case '-': return make_token(scanner, TK_MINUS);

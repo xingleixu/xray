@@ -149,6 +149,7 @@ AstNode *xr_parse_literal(Parser *parser);      /* 字面量：数字、字符�
 AstNode *xr_parse_grouping(Parser *parser);     /* 括号表达式：(expr) */
 AstNode *xr_parse_unary(Parser *parser);        /* 一元运算符：-expr, !expr */
 AstNode *xr_parse_array_literal(Parser *parser);  /* 数组字面量：[1, 2, 3] */
+AstNode *xr_parse_map_literal(Parser *parser);    /* Map字面量：{a: 1, b: 2} （v0.11.0）*/
 
 /*
 ** 中缀解析函数（处理二元运算符）
