@@ -330,3 +330,50 @@ void xr_array_ensure_capacity(XrArray *arr, int min_capacity) {
     arr->capacity = new_capacity;
 }
 
+
+/*
+ * 用分隔符连接数组元素为字符串（v0.10.0新增）
+ */
+struct XrString* xr_array_join(XrArray *arr, struct XrString *delimiter) {
+    extern struct XrString* xr_string_intern(const char *chars, size_t length, uint32_t hash);
+    extern struct XrString* xr_string_concat(struct XrString *a, struct XrString *b);
+    extern struct XrString* xr_string_from_int(xr_Integer i);
+    extern struct XrString* xr_string_from_float(xr_Number n);
+    
+    if (arr == NULL || arr->count == 0) {
+        return xr_string_intern("", 0, 0);
+    }
+    
+    struct XrString *result = xr_string_intern("", 0, 0);
+    
+    for (size_t i = 0; i < arr->count; i++) {
+        XrValue val = arr->elements[i];
+        struct XrString *str_part = NULL;
+        
+        if (xr_isstring(val)) {
+            str_part = xr_tostring(val);
+        } else if (xr_isint(val)) {
+            str_part = xr_string_from_int(xr_toint(val));
+        } else if (xr_isfloat(val)) {
+            str_part = xr_string_from_float(xr_tofloat(val));
+        } else if (xr_isbool(val)) {
+            str_part = xr_tobool(val) ? 
+                xr_string_intern("true", 4, 0) : 
+                xr_string_intern("false", 5, 0);
+        } else if (xr_isnull(val)) {
+            str_part = xr_string_intern("null", 4, 0);
+        } else {
+            str_part = xr_string_intern("[object]", 8, 0);
+        }
+        
+        if (str_part != NULL) {
+            result = xr_string_concat(result, str_part);
+        }
+        
+        if (i < arr->count - 1 && delimiter != NULL) {
+            result = xr_string_concat(result, delimiter);
+        }
+    }
+    
+    return result;
+}

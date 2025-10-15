@@ -27,6 +27,9 @@ typedef enum {
     AST_LITERAL_TRUE,       /* true */
     AST_LITERAL_FALSE,      /* false */
     
+    /* 模板字符串（v0.10.0 Day 5新增）*/
+    AST_TEMPLATE_STRING,    /* 模板字符串：`Hello, ${name}!` */
+    
     /* 二元运算节点 - 算术运算 */
     AST_BINARY_ADD,         /* 加法：a + b */
     AST_BINARY_SUB,         /* 减法：a - b */
@@ -280,6 +283,19 @@ typedef struct {
 } MemberAccessNode;
 
 /*
+** 模板字符串节点（v0.10.0 Day 5新增）
+** `Hello, ${name}! ${age}`
+** 
+** 存储：交替存储字符串片段和表达式
+** 例如: `Hello, ${name}!` 
+** parts = ["Hello, ", expr(name), "!"]
+*/
+typedef struct {
+    AstNode **parts;        /* 字符串片段和表达式（交替）*/
+    int part_count;         /* 片段数量 */
+} TemplateStringNode;
+
+/*
 ** AST 节点通用结构
 ** 所有节点类型的基础
 */
@@ -312,6 +328,7 @@ struct AstNode {
         IndexGetNode index_get;     /* 索引访问 */
         IndexSetNode index_set;     /* 索引赋值 */
         MemberAccessNode member_access; /* 成员访问 */
+        TemplateStringNode template_str;  /* 模板字符串（v0.10.0）*/
         ProgramNode program;        /* 程序 */
     } as;
 };
@@ -324,6 +341,9 @@ AstNode *xr_ast_literal_float(XrayState *X, xr_Number value, int line);
 AstNode *xr_ast_literal_string(XrayState *X, const char *value, int line);
 AstNode *xr_ast_literal_null(XrayState *X, int line);
 AstNode *xr_ast_literal_bool(XrayState *X, int value, int line);
+
+/* 创建模板字符串节点（v0.10.0 Day 5新增）*/
+AstNode *xr_ast_template_string(XrayState *X, AstNode **parts, int part_count, int line);
 
 /* 创建二元运算节点 */
 AstNode *xr_ast_binary(XrayState *X, AstNodeType type, 

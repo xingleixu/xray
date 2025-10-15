@@ -1,0 +1,108 @@
+// 34_template_strings.xr
+// 模板字符串功能演示
+// v0.10.0: 模板字符串支持
+
+print("========== 基本模板字符串 ==========")
+
+// 基本使用
+let message = `Hello, World!`
+print(message)  // "Hello, World!"
+
+print("\n========== 单个插值 ==========")
+
+let name = "Xray"
+let greeting = `Hello, ${name}!`
+print(greeting)  // "Hello, Xray!"
+
+let version = "0.10.0"
+let info = `Version: ${version}`
+print(info)  // "Version: 0.10.0"
+
+print("\n========== 多个插值 ==========")
+
+let firstName = "Xu"
+let lastName = "Xinglei"
+let fullName = `${firstName} ${lastName}`
+print(fullName)  // "Xu Xinglei"
+
+print("\n========== 表达式插值 ==========")
+
+let x = 10
+let y = 20
+print(`${x} + ${y} = ${x + y}`)  // "10 + 20 = 30"
+
+let a = 5
+let b = 3
+print(`${a} * ${b} = ${a * b}`)  // "5 * 3 = 15"
+
+print("\n========== 布尔和null插值 ==========")
+
+let flag = true
+print(`Flag is: ${flag}`)  // "Flag is: true"
+
+let empty = null
+print(`Empty: ${empty}`)  // "Empty: null"
+
+print("\n========== 字符串方法插值 ==========")
+
+let text = "hello"
+print(`Uppercase: ${text.toUpperCase()}`)  // "Uppercase: HELLO"
+
+let padded = "  trim  "
+print(`Trimmed: ${padded.trim()}`)  // "Trimmed: trim"
+
+print("\n========== 数组插值 ==========")
+
+let numbers = [1, 2, 3, 4, 5]
+print(`Array length: ${numbers.length}`)  // "Array length: 5"
+
+let sum = numbers.reduce((acc, n) => acc + n, 0)
+print(`Sum: ${sum}`)  // "Sum: 15"
+
+print("\n========== 数组方法插值 ==========")
+
+let fruits = ["apple", "banana", "orange"]
+print(`Fruits: ${fruits.join(", ")}`)  // "Fruits: apple, banana, orange"
+
+let csv = "a,b,c"
+let items = csv.split(",")
+print(`Items: ${items.join(" | ")}`)  // "Items: a | b | c"
+
+print("\n========== 多行模板字符串 ==========")
+
+let multiline = `
+    Name: ${name}
+    Version: ${version}
+    Status: Active
+`
+print(multiline)
+
+print("\n========== 复杂插值 ==========")
+
+let users = ["Alice", "Bob", "Charlie"]
+let userList = `Users: ${users.join(", ")}`
+print(userList)  // "Users: Alice, Bob, Charlie"
+
+let scores = [85, 92, 78, 95]
+let average = scores.reduce((acc, s) => acc + s, 0) / scores.length
+print(`Average score: ${average}`)  // "Average score: 87.5"
+
+print("\n========== 嵌套表达式 ==========")
+
+let price = 99
+let quantity = 3
+let total = price * quantity
+print(`Total: $${total}`)  // "Total: $297"
+
+let discount = 10
+let finalPrice = total - discount
+print(`Final price: $${finalPrice} (saved $${discount})`)
+
+print("\n========== 模板中的字符串拼接 ==========")
+
+let part1 = "Hello"
+let part2 = "World"
+print(`${part1 + " " + part2}`)  // "Hello World"
+
+print("\n========== 完成 ==========")
+

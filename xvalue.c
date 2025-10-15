@@ -5,6 +5,7 @@
 
 #include "xvalue.h"
 #include "xtype.h"
+#include "xstring.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -184,30 +185,21 @@ void xr_object_init(XrObject *obj, XrType type, XrTypeInfo *type_info) {
 }
 
 /*
-** 创建字符串对象
+** 创建字符串值（新增 v0.10.0）
+** 使用新的字符串系统（xstring.h/c）
 */
-XrString* xr_string_new(const char *str, size_t length) {
-    XrString *s = (XrString*)malloc(sizeof(XrString) + length + 1);
-    if (s == NULL) {
-        return NULL;
-    }
-    
-    xr_object_init(&s->header, XR_TSTRING, &xr_builtin_string_type);
-    s->length = length;
-    s->hash = 0;  /* TODO: 计算hash值 */
-    memcpy(s->data, str, length);
-    s->data[length] = '\0';
-    
-    return s;
-}
-
-/*
-** 释放字符串对象
-*/
-void xr_string_free(XrString *str) {
-    if (str) {
-        free(str);
-    }
+XrValue xr_string_value(XrString *str) {
+#if XR_NAN_TAGGING
+    /* NaN Tagging模式：对象指针 */
+    return XR_OBJ_TO_VAL(str);
+#else
+    /* Tagged Union模式 */
+    XrValue v;
+    v.type = XR_TSTRING;
+    v.type_info = str ? str->header.type_info : NULL;
+    v.as.obj = str;
+    return v;
+#endif
 }
 
 /*

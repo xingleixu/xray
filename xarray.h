@@ -213,6 +213,15 @@ XrArray* xr_array_filter(XrArray *arr, XrFunction *callback, struct XSymbolTable
  */
 XrValue xr_array_reduce(XrArray *arr, XrFunction *callback, XrValue initial, struct XSymbolTable *symbols);
 
+/**
+ * 用分隔符连接数组元素为字符串（v0.10.0新增）
+ * @param arr 数组
+ * @param delimiter 分隔符字符串
+ * @return 连接后的字符串
+ * @note 用法: array.join(",") 返回 "a,b,c"
+ */
+struct XrString* xr_array_join(XrArray *arr, struct XrString *delimiter);
+
 /* ====== 工具方法 ====== */
 
 /**

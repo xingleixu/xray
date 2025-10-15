@@ -50,20 +50,21 @@ AstNode *xr_ast_literal_float(XrayState *X, xr_Number value, int line) {
 
 /*
 ** 创建字符串字面量节点
-** 注意：暂时直接存储指针，后续会实现字符串对象
+** v0.10.0: 使用字符串驻留系统
 */
 AstNode *xr_ast_literal_string(XrayState *X, const char *value, int line) {
+    /* 引用字符串驻留函数 */
+    extern XrString* xr_string_intern(const char *chars, size_t length, uint32_t hash);
+    extern XrValue xr_string_value(XrString *str);
+    
+    (void)X;  /* 暂时未使用 */
+    
     AstNode *node = alloc_node(X, AST_LITERAL_STRING, line);
-    /* 暂时简单实现：直接存储字符串指针 */
-    /* TODO: 后续实现字符串对象和驻留 */
-    char *str = (char *)malloc(strlen(value) + 1);
-    strcpy(str, value);
-    /* 使用新API创建字符串值 */
-    XrValue v = xr_null();  /* 先创建一个值 */
-    v.type = XR_TSTRING;
-    v.type_info = &xr_builtin_string_type;
-    v.as.obj = str;
-    node->as.literal.value = v;
+    
+    /* 使用字符串驻留（v0.10.0新增）*/
+    XrString *str = xr_string_intern(value, strlen(value), 0);
+    node->as.literal.value = xr_string_value(str);
+    
     return node;
 }
 
@@ -73,6 +74,27 @@ AstNode *xr_ast_literal_string(XrayState *X, const char *value, int line) {
 AstNode *xr_ast_literal_null(XrayState *X, int line) {
     AstNode *node = alloc_node(X, AST_LITERAL_NULL, line);
     node->as.literal.value = xr_null();  /* 新API */
+    return node;
+}
+
+/*
+** 创建模板字符串节点（v0.10.0 Day 5新增）
+** 参数：
+**   parts: 字符串片段和表达式数组（交替）
+**   part_count: 片段数量
+*/
+AstNode *xr_ast_template_string(XrayState *X, AstNode **parts, int part_count, int line) {
+    (void)X;  /* 暂时未使用 */
+    
+    AstNode *node = alloc_node(X, AST_TEMPLATE_STRING, line);
+    
+    /* 分配并复制parts数组 */
+    node->as.template_str.parts = (AstNode**)malloc(sizeof(AstNode*) * part_count);
+    for (int i = 0; i < part_count; i++) {
+        node->as.template_str.parts[i] = parts[i];
+    }
+    node->as.template_str.part_count = part_count;
+    
     return node;
 }
 
@@ -531,10 +553,8 @@ void xr_ast_free(XrayState *X, AstNode *node) {
             break;
             
         case AST_LITERAL_STRING:
-            /* 释放字符串内存 */
-            if (node->as.literal.value.as.obj != NULL) {
-                free(node->as.literal.value.as.obj);
-            }
+            /* v0.10.0: 字符串由驻留池管理，不在这里释放 */
+            /* 驻留的字符串由xr_string_pool_free()统一释放 */
             break;
         
         /* 二元运算节点 */
@@ -766,6 +786,7 @@ const char *xr_ast_typename(AstNodeType type) {
         case AST_INDEX_GET:         return "IndexGet";
         case AST_INDEX_SET:         return "IndexSet";
         case AST_MEMBER_ACCESS:     return "MemberAccess";
+        case AST_TEMPLATE_STRING:   return "TemplateString";
         case AST_PROGRAM:           return "Program";
         default:                    return "Unknown";
     }

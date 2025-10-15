@@ -79,6 +79,9 @@ typedef enum {
     TK_STRING,          /* 字符串字面量 */
     TK_NAME,            /* 标识符 */
     
+    /* 模板字符串（v0.10.0 Day 5新增）*/
+    TK_TEMPLATE_STRING, /* 模板字符串 `hello ${name}` */
+    
     /* 特殊 */
     TK_EOF,             /* 文件结束 */
     TK_ERROR            /* 错误 */

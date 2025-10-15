@@ -238,11 +238,22 @@ static Token number(Scanner *scanner) {
     return make_token(scanner, type);
 }
 
-/* 扫描字符串 */
+/* 
+** 扫描字符串
+** v0.10.0: 基本扫描，转义序列在解析阶段处理
+*/
 static Token string(Scanner *scanner) {
     while (peek(scanner) != '"' && !is_at_end(scanner)) {
-        if (peek(scanner) == '\n') scanner->line++;
-        advance(scanner);
+        /* 支持转义的引号 */
+        if (peek(scanner) == '\\') {
+            advance(scanner);  /* 跳过 \ */
+            if (!is_at_end(scanner)) {
+                advance(scanner);  /* 跳过转义字符 */
+            }
+        } else {
+            if (peek(scanner) == '\n') scanner->line++;
+            advance(scanner);
+        }
     }
     
     if (is_at_end(scanner)) {
@@ -251,6 +262,35 @@ static Token string(Scanner *scanner) {
     
     advance(scanner); /* 消耗结束的 " */
     return make_token(scanner, TK_STRING);
+}
+
+/*
+** 扫描模板字符串（v0.10.0 Day 5新增）
+** 语法: `Hello, ${name}!`
+** 
+** 简化实现：将模板字符串作为一个整体token
+** 包含完整的反引号内容，在解析阶段处理${...}插值
+*/
+static Token template_string(Scanner *scanner) {
+    while (peek(scanner) != '`' && !is_at_end(scanner)) {
+        /* 支持转义的反引号 */
+        if (peek(scanner) == '\\') {
+            advance(scanner);  /* 跳过 \ */
+            if (!is_at_end(scanner)) {
+                advance(scanner);  /* 跳过转义字符 */
+            }
+        } else {
+            if (peek(scanner) == '\n') scanner->line++;
+            advance(scanner);
+        }
+    }
+    
+    if (is_at_end(scanner)) {
+        return error_token(scanner, "未结束的模板字符串");
+    }
+    
+    advance(scanner); /* 消耗结束的 ` */
+    return make_token(scanner, TK_TEMPLATE_STRING);
 }
 
 /* 
@@ -318,6 +358,8 @@ Token xr_scanner_scan(Scanner *scanner) {
             return make_token(scanner, TK_QUESTION);  /* ? (可选类型) */
         case '"':
             return string(scanner);
+        case '`':
+            return template_string(scanner);  /* v0.10.0: 模板字符串 */
     }
     
     return error_token(scanner, "未知字符");
@@ -384,6 +426,7 @@ const char *xr_token_name(TokenType type) {
         case TK_INT: return "INT";
         case TK_FLOAT: return "FLOAT";
         case TK_STRING: return "STRING";
+        case TK_TEMPLATE_STRING: return "TEMPLATE_STRING";
         case TK_NAME: return "NAME";
         case TK_EOF: return "EOF";
         case TK_ERROR: return "ERROR";

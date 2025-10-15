@@ -12,6 +12,7 @@
 /* ========== 前向声明 ========== */
 
 static AstNode *xr_parse_arrow_function_body(Parser *parser, char **params, int param_count, int line);
+static AstNode *xr_parse_template_string(Parser *parser);
 
 /* ========== 解析规则表 ========== */
 
@@ -75,6 +76,7 @@ static ParseRule rules[] = {
     [TK_INT]        = {xr_parse_literal,  NULL,           PREC_NONE},
     [TK_FLOAT]      = {xr_parse_literal,  NULL,           PREC_NONE},
     [TK_STRING]     = {xr_parse_literal,  NULL,           PREC_NONE},
+    [TK_TEMPLATE_STRING] = {xr_parse_template_string, NULL, PREC_NONE},
     [TK_NAME]       = {xr_parse_variable, NULL,           PREC_NONE},
     
     /* 特殊 */
@@ -277,10 +279,40 @@ AstNode *xr_parse_literal(Parser *parser) {
         }
         
         case TK_STRING: {
-            /* 解析字符串（去掉引号） */
-            char *str = (char *)malloc(parser->previous.length - 1);
-            memcpy(str, parser->previous.start + 1, parser->previous.length - 2);
-            str[parser->previous.length - 2] = '\0';
+            /* 解析字符串（去掉引号，处理转义序列）*/
+            /* v0.10.0: 支持转义序列 \n \r \t \\ \" 等 */
+            const char *src = parser->previous.start + 1;  /* 跳过开头的 " */
+            size_t src_len = parser->previous.length - 2;  /* 去掉两端的引号 */
+            
+            char *str = (char *)malloc(src_len + 1);
+            size_t dst_pos = 0;
+            
+            for (size_t i = 0; i < src_len; i++) {
+                if (src[i] == '\\' && i + 1 < src_len) {
+                    /* 处理转义序列 */
+                    i++;  /* 跳过反斜杠 */
+                    switch (src[i]) {
+                        case 'n':  str[dst_pos++] = '\n'; break;  /* 换行 */
+                        case 'r':  str[dst_pos++] = '\r'; break;  /* 回车 */
+                        case 't':  str[dst_pos++] = '\t'; break;  /* 制表符 */
+                        case '\\': str[dst_pos++] = '\\'; break;  /* 反斜杠 */
+                        case '"':  str[dst_pos++] = '"';  break;  /* 双引号 */
+                        case '\'': str[dst_pos++] = '\''; break;  /* 单引号 */
+                        case 'b':  str[dst_pos++] = '\b'; break;  /* 退格 */
+                        case 'f':  str[dst_pos++] = '\f'; break;  /* 换页 */
+                        case '0':  str[dst_pos++] = '\0'; break;  /* 空字符 */
+                        default:
+                            /* 无效的转义序列，保留原样 */
+                            str[dst_pos++] = '\\';
+                            str[dst_pos++] = src[i];
+                            break;
+                    }
+                } else {
+                    str[dst_pos++] = src[i];
+                }
+            }
+            str[dst_pos] = '\0';
+            
             AstNode *node = xr_ast_literal_string(parser->X, str, parser->previous.line);
             free(str);
             return node;
@@ -299,6 +331,150 @@ AstNode *xr_parse_literal(Parser *parser) {
             xr_parser_error(parser, "未知的字面量类型");
             return NULL;
     }
+}
+
+/*
+** 解析模板字符串（v0.10.0 Day 5-6新增）
+** 语法: `Hello, ${name}! ${age}`
+** 
+** 实现策略：
+** 1. 解析反引号内的完整内容
+** 2. 识别 ${...} 插值表达式
+** 3. 分离字符串片段和表达式
+** 4. 创建AST节点数组
+*/
+static AstNode *xr_parse_template_string(Parser *parser) {
+    const char *template = parser->previous.start + 1;  /* 跳过开头的 ` */
+    int template_len = parser->previous.length - 2;     /* 去掉两端的 ` */
+    
+    /* parts数组：存储字符串片段和表达式节点 */
+    AstNode **parts = NULL;
+    int part_count = 0;
+    int part_capacity = 4;
+    
+    parts = (AstNode**)malloc(sizeof(AstNode*) * part_capacity);
+    if (!parts) {
+        xr_parser_error(parser, "内存分配失败");
+        return NULL;
+    }
+    
+    int i = 0;
+    while (i < template_len) {
+        /* 查找下一个 ${ */
+        int expr_start = -1;
+        for (int j = i; j < template_len - 1; j++) {
+            if (template[j] == '$' && template[j + 1] == '{') {
+                expr_start = j;
+                break;
+            }
+        }
+        
+        if (expr_start == -1) {
+            /* 没有更多插值，剩余部分都是字符串 */
+            if (i < template_len) {
+                char *str_part = (char*)malloc(template_len - i + 1);
+                memcpy(str_part, template + i, template_len - i);
+                str_part[template_len - i] = '\0';
+                
+                /* 创建字符串字面量节点 */
+                AstNode *str_node = xr_ast_literal_string(parser->X, str_part, parser->previous.line);
+                free(str_part);
+                
+                /* 添加到parts */
+                if (part_count >= part_capacity) {
+                    part_capacity *= 2;
+                    parts = (AstNode**)realloc(parts, sizeof(AstNode*) * part_capacity);
+                }
+                parts[part_count++] = str_node;
+            }
+            break;
+        }
+        
+        /* 添加 ${ 之前的字符串片段 */
+        if (expr_start > i) {
+            char *str_part = (char*)malloc(expr_start - i + 1);
+            memcpy(str_part, template + i, expr_start - i);
+            str_part[expr_start - i] = '\0';
+            
+            AstNode *str_node = xr_ast_literal_string(parser->X, str_part, parser->previous.line);
+            free(str_part);
+            
+            if (part_count >= part_capacity) {
+                part_capacity *= 2;
+                parts = (AstNode**)realloc(parts, sizeof(AstNode*) * part_capacity);
+            }
+            parts[part_count++] = str_node;
+        }
+        
+        /* 查找匹配的 } */
+        int expr_end = -1;
+        int brace_count = 1;
+        int j = expr_start + 2;  /* 跳过 ${ */
+        
+        while (j < template_len && brace_count > 0) {
+            if (template[j] == '{') {
+                brace_count++;
+            } else if (template[j] == '}') {
+                brace_count--;
+                if (brace_count == 0) {
+                    expr_end = j;
+                    break;
+                }
+            }
+            j++;
+        }
+        
+        if (expr_end == -1) {
+            free(parts);
+            xr_parser_error(parser, "模板字符串中缺少匹配的 }");
+            return NULL;
+        }
+        
+        /* 解析插值表达式 */
+        int expr_len = expr_end - (expr_start + 2);
+        if (expr_len > 0) {
+            char *expr_code = (char*)malloc(expr_len + 1);
+            memcpy(expr_code, template + expr_start + 2, expr_len);
+            expr_code[expr_len] = '\0';
+            
+            /* 创建临时解析器解析表达式 */
+            Scanner expr_scanner;
+            xr_scanner_init(&expr_scanner, expr_code);
+            
+            Parser expr_parser;
+            expr_parser.scanner = expr_scanner;  /* 直接赋值，不用& */
+            expr_parser.X = parser->X;
+            expr_parser.had_error = 0;
+            expr_parser.panic_mode = 0;
+            
+            xr_parser_advance(&expr_parser);
+            AstNode *expr_node = xr_parse_expression(&expr_parser);
+            
+            free(expr_code);
+            
+            if (expr_node) {
+                if (part_count >= part_capacity) {
+                    part_capacity *= 2;
+                    parts = (AstNode**)realloc(parts, sizeof(AstNode*) * part_capacity);
+                }
+                parts[part_count++] = expr_node;
+            }
+        }
+        
+        i = expr_end + 1;  /* 跳过 } */
+    }
+    
+    /* 如果没有任何parts，返回空字符串 */
+    if (part_count == 0) {
+        free(parts);
+        return xr_ast_literal_string(parser->X, "", parser->previous.line);
+    }
+    
+    /* 创建模板字符串节点 */
+    AstNode *node = xr_ast_template_string(parser->X, parts, part_count, parser->previous.line);
+    free(parts);  /* xr_ast_template_string内部会复制 */
+    
+    return node;
 }
 
 /*

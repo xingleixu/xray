@@ -17,6 +17,7 @@
 typedef struct AstNode AstNode;
 typedef struct XScope XScope;
 typedef struct XrTypeInfo XrTypeInfo;
+typedef struct XrString XrString;
 
 /*
 ** 编译时开关：NaN Tagging模式
@@ -171,14 +172,9 @@ const char* xr_typename(XrType type);
 /* ========== 对象定义（在XrValue之后）========== */
 
 /*
-** 字符串对象
+** 字符串对象（已移至 xstring.h）
 */
-typedef struct {
-    XrObject header;
-    size_t length;
-    uint32_t hash;
-    char data[];  /* 柔性数组 */
-} XrString;
+/* XrString 定义移至 xstring.h */
 
 /*
 ** 数组对象（为第9阶段准备）
@@ -211,9 +207,8 @@ typedef struct {
 
 /* ========== 对象操作 ========== */
 
-/* 字符串对象 */
-XrString* xr_string_new(const char *str, size_t length);
-void xr_string_free(XrString *str);
+/* 字符串值创建（新增 v0.10.0）*/
+XrValue xr_string_value(XrString *str);
 
 /* 函数对象 */
 XrFunction* xr_function_new(const char *name, char **parameters, 

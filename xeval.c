@@ -12,6 +12,7 @@
 #include "xeval.h"
 #include "xstate.h"
 #include "xarray.h"  /* 第九阶段新增：数组支持 */
+#include "xstring.h" /* 第十阶段新增：字符串支持 */
 
 /* 最大调用深度（防止栈溢出） */
 #define MAX_CALL_DEPTH 1000
@@ -22,6 +23,8 @@ static XrValue xr_eval_literal(XrayState *X, AstNode *node);
 static XrValue xr_eval_binary(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret);
 static XrValue xr_eval_unary(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret);
 static XrValue xr_eval_grouping(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret);
+static XrValue xr_eval_string_method_call(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret);
+static XrValue xr_eval_template_string(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret);
 static XrValue xr_eval_expr_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret);
 static XrValue xr_eval_print_stmt(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret);
 static XrValue xr_eval_block_internal(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret);
@@ -92,6 +95,10 @@ static XrValue xr_eval_internal(XrayState *X, AstNode *node, XSymbolTable *symbo
         case AST_LITERAL_TRUE:
         case AST_LITERAL_FALSE:
             return xr_eval_literal(X, node);
+        
+        /* 模板字符串（v0.10.0 Day 6新增）*/
+        case AST_TEMPLATE_STRING:
+            return xr_eval_template_string(X, node, symbols, loop, ret);
         
         /* 二元运算节点 */
         case AST_BINARY_ADD:
@@ -200,6 +207,69 @@ static XrValue xr_eval_internal(XrayState *X, AstNode *node, XSymbolTable *symbo
 static XrValue xr_eval_literal(XrayState *X, AstNode *node) {
     (void)X;  /* 未使用，避免警告 */
     return node->as.literal.value;
+}
+
+/*
+** 模板字符串求值（v0.10.0 Day 6新增）
+** 求值 `Hello, ${name}! ${age}` 这样的模板字符串
+** 
+** 处理流程：
+** 1. 遍历所有parts
+** 2. 如果part是字符串字面量 → 直接使用
+** 3. 如果part是表达式 → 求值后转为字符串
+** 4. 拼接所有字符串
+** 5. 返回最终结果
+*/
+static XrValue xr_eval_template_string(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret) {
+    /* 引用字符串函数 */
+    extern XrString* xr_string_intern(const char *chars, size_t length, uint32_t hash);
+    extern XrString* xr_string_concat(XrString *a, XrString *b);
+    extern XrString* xr_string_from_int(xr_Integer i);
+    extern XrString* xr_string_from_float(xr_Number n);
+    extern XrValue xr_string_value(XrString *str);
+    
+    TemplateStringNode *tmpl = &node->as.template_str;
+    
+    /* 从空字符串开始 */
+    XrString *result = xr_string_intern("", 0, 0);
+    
+    /* 遍历所有parts */
+    for (int i = 0; i < tmpl->part_count; i++) {
+        AstNode *part = tmpl->parts[i];
+        
+        if (part->type == AST_LITERAL_STRING) {
+            /* 字符串片段，直接获取 */
+            XrString *str_part = xr_tostring(part->as.literal.value);
+            result = xr_string_concat(result, str_part);
+        } else {
+            /* 表达式片段，求值后转字符串 */
+            XrValue val = xr_eval_internal(X, part, symbols, loop, ret);
+            XrString *str_part = NULL;
+            
+            /* 根据类型转换为字符串 */
+            if (xr_isstring(val)) {
+                str_part = xr_tostring(val);
+            } else if (xr_isint(val)) {
+                str_part = xr_string_from_int(xr_toint(val));
+            } else if (xr_isfloat(val)) {
+                str_part = xr_string_from_float(xr_tofloat(val));
+            } else if (xr_isbool(val)) {
+                str_part = xr_tobool(val) ? 
+                    xr_string_intern("true", 4, 0) : 
+                    xr_string_intern("false", 5, 0);
+            } else if (xr_isnull(val)) {
+                str_part = xr_string_intern("null", 4, 0);
+            } else {
+                str_part = xr_string_intern("[object]", 8, 0);
+            }
+            
+            if (str_part) {
+                result = xr_string_concat(result, str_part);
+            }
+        }
+    }
+    
+    return xr_string_value(result);
 }
 
 /*
@@ -315,26 +385,23 @@ static XrValue xr_eval_program(XrayState *X, AstNode *node, XSymbolTable *symbol
 /*
 ** 加法运算
 ** 支持：数字 + 数字、字符串 + 字符串
+** v0.10.0: 使用字符串驻留系统
 */
 XrValue xr_eval_add(XrayState *X, XrValue left, XrValue right) {
+    /* 引用字符串函数 */
+    extern XrString* xr_string_concat(XrString *a, XrString *b);
+    extern XrValue xr_string_value(XrString *str);
+    
     XrValue result = xr_null();  /* 新API - 默认初始化为null */
     
-    /* 字符串拼接 */
+    /* 字符串拼接（v0.10.0：使用驻留系统）*/
     if (xr_isstring(left) && xr_isstring(right)) {
-        /* 简单实现：字符串拼接 */
-        const char *left_str = (const char *)xr_toobj(left);
-        const char *right_str = (const char *)xr_toobj(right);
+        XrString *left_str = xr_tostring(left);
+        XrString *right_str = xr_tostring(right);
         
-        int left_len = strlen(left_str);
-        int right_len = strlen(right_str);
-        char *new_str = (char *)malloc(left_len + right_len + 1);
-        
-        strcpy(new_str, left_str);
-        strcat(new_str, right_str);
-        
-        result.type = XR_TSTRING;
-        result.as.obj = new_str;
-        return result;
+        /* 使用新的字符串拼接函数（结果自动驻留）*/
+        XrString *concat_str = xr_string_concat(left_str, right_str);
+        return xr_string_value(concat_str);
     }
     
     /* 数字加法 */
@@ -680,6 +747,7 @@ int xr_values_equal(XrValue a, XrValue b) {
 
 /*
 ** 将值转换为字符串表示
+** v0.10.0: 支持新的字符串对象
 */
 const char *xr_value_to_string(XrayState *X, XrValue value) {
     static char buffer[64];  /* 简单实现，使用静态缓冲区 */
@@ -695,8 +763,11 @@ const char *xr_value_to_string(XrayState *X, XrValue value) {
         case XR_TFLOAT:
             snprintf(buffer, sizeof(buffer), "%g", xr_tofloat(value));
             return buffer;
-        case XR_TSTRING:
-            return (const char *)xr_toobj(value);
+        case XR_TSTRING: {
+            /* v0.10.0: 使用XrString对象 */
+            XrString *str = xr_tostring(value);
+            return str ? str->chars : "";
+        }
         default:
             return "<unknown>";
     }
@@ -1276,7 +1347,7 @@ XrValue xr_eval_index_set(XrayState *X, AstNode *node, XSymbolTable *symbols, Lo
 
 /*
 ** 求值成员访问
-** arr.length, arr.push (这个阶段只支持length属性)
+** arr.length, str.length (v0.10.0新增字符串支持)
 */
 XrValue xr_eval_member_access(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret) {
     MemberAccessNode *member = &node->as.member_access;
@@ -1298,22 +1369,44 @@ XrValue xr_eval_member_access(XrayState *X, AstNode *node, XSymbolTable *symbols
         return xr_null();
     }
     
+    /* 字符串对象（v0.10.0新增）*/
+    if (xr_isstring(obj_val)) {
+        XrString *str = xr_tostring(obj_val);
+        
+        /* length 属性 */
+        if (strcmp(member->name, "length") == 0) {
+            return xr_int(str->length);
+        }
+        
+        /* 其他方法在 AST_CALL_EXPR 中处理 */
+        xr_runtime_error(X, node->line, "未知的字符串属性: %s", member->name);
+        return xr_null();
+    }
+    
     xr_runtime_error(X, node->line, "对象不支持成员访问");
     return xr_null();
 }
 
 /*
 ** 求值数组方法调用（第九阶段 Day 6 新增）
-** arr.push(1), arr.pop(), arr.indexOf(10) 等
+** v0.10.0: 同时支持字符串方法调用
+** arr.push(1), arr.pop(), str.charAt(0), str.substring(0, 5) 等
 */
 XrValue xr_eval_array_method_call(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret) {
     CallExprNode *call_node = &node->as.call_expr;
     MemberAccessNode *member = &call_node->callee->as.member_access;
     
-    /* 求值数组对象 */
+    /* 求值对象 */
     XrValue obj_val = xr_eval_internal(X, member->object, symbols, loop, ret);
+    
+    /* v0.10.0: 字符串方法调用 */
+    if (xr_isstring(obj_val)) {
+        return xr_eval_string_method_call(X, node, symbols, loop, ret);
+    }
+    
+    /* 数组方法调用 */
     if (!xr_value_is_array(obj_val)) {
-        xr_runtime_error(X, node->line, "只能在数组上调用数组方法");
+        xr_runtime_error(X, node->line, "只能在数组或字符串上调用方法");
         return xr_null();
     }
     
@@ -1446,11 +1539,285 @@ XrValue xr_eval_array_method_call(XrayState *X, AstNode *node, XSymbolTable *sym
         return xr_array_reduce(arr, callback, initial, symbols);
     }
     
+    /* ===== join(delimiter) - v0.10.0新增 ===== */
+    else if (strcmp(method, "join") == 0) {
+        /* 引用join函数 */
+        extern struct XrString* xr_array_join(XrArray *arr, struct XrString *delimiter);
+        extern XrValue xr_string_value(XrString *str);
+        
+        if (call_node->arg_count != 1) {
+            xr_runtime_error(X, node->line, "join 方法需要 1 个参数");
+            return xr_null();
+        }
+        
+        XrValue arg = xr_eval_internal(X, call_node->arguments[0], symbols, loop, ret);
+        if (!xr_isstring(arg)) {
+            xr_runtime_error(X, node->line, "join 参数必须是字符串");
+            return xr_null();
+        }
+        
+        struct XrString *result = xr_array_join(arr, xr_tostring(arg));
+        return xr_string_value(result);
+    }
+    
     /* 未知方法 */
     else {
         xr_runtime_error(X, node->line, "未知的数组方法: %s", method);
         return xr_null();
     }
+}
+
+/*
+** 求值字符串方法调用（v0.10.0新增）
+** str.charAt(0), str.substring(0, 5), str.toUpperCase() 等
+*/
+XrValue xr_eval_string_method_call(XrayState *X, AstNode *node, XSymbolTable *symbols, LoopControl *loop, ReturnControl *ret) {
+    /* 引用字符串方法函数 */
+    extern XrString* xr_string_char_at(XrString *str, xr_Integer index);
+    extern XrString* xr_string_substring(XrString *str, xr_Integer start, xr_Integer end);
+    extern xr_Integer xr_string_index_of(XrString *str, XrString *substr);
+    extern bool xr_string_contains(XrString *str, XrString *substr);
+    extern bool xr_string_starts_with(XrString *str, XrString *prefix);
+    extern bool xr_string_ends_with(XrString *str, XrString *suffix);
+    extern XrString* xr_string_to_lower_case(XrString *str);
+    extern XrString* xr_string_to_upper_case(XrString *str);
+    extern XrString* xr_string_trim(XrString *str);
+    extern struct XrArray* xr_string_split(XrString *str, XrString *delimiter);
+    extern XrString* xr_string_replace(XrString *str, XrString *old_str, XrString *new_str);
+    extern XrString* xr_string_replace_all(XrString *str, XrString *old_str, XrString *new_str);
+    extern XrString* xr_string_repeat(XrString *str, xr_Integer count);
+    extern XrValue xr_string_value(XrString *str);
+    extern XrValue xr_value_from_array(struct XrArray *arr);
+    
+    CallExprNode *call_node = &node->as.call_expr;
+    MemberAccessNode *member = &call_node->callee->as.member_access;
+    
+    /* 求值字符串对象 */
+    XrValue obj_val = xr_eval_internal(X, member->object, symbols, loop, ret);
+    XrString *str = xr_tostring(obj_val);
+    const char *method = member->name;
+    
+    /* ===== charAt(index) ===== */
+    if (strcmp(method, "charAt") == 0) {
+        if (call_node->arg_count != 1) {
+            xr_runtime_error(X, node->line, "charAt 方法需要 1 个参数");
+            return xr_null();
+        }
+        
+        XrValue arg = xr_eval_internal(X, call_node->arguments[0], symbols, loop, ret);
+        if (!xr_isint(arg)) {
+            xr_runtime_error(X, node->line, "charAt 参数必须是整数");
+            return xr_null();
+        }
+        
+        XrString *result = xr_string_char_at(str, xr_toint(arg));
+        return result ? xr_string_value(result) : xr_null();
+    }
+    
+    /* ===== substring(start, end?) ===== */
+    if (strcmp(method, "substring") == 0) {
+        if (call_node->arg_count < 1 || call_node->arg_count > 2) {
+            xr_runtime_error(X, node->line, "substring 方法需要 1 或 2 个参数");
+            return xr_null();
+        }
+        
+        XrValue start_val = xr_eval_internal(X, call_node->arguments[0], symbols, loop, ret);
+        if (!xr_isint(start_val)) {
+            xr_runtime_error(X, node->line, "substring 起始位置必须是整数");
+            return xr_null();
+        }
+        
+        xr_Integer start = xr_toint(start_val);
+        xr_Integer end = -1;  /* 默认到末尾 */
+        
+        if (call_node->arg_count == 2) {
+            XrValue end_val = xr_eval_internal(X, call_node->arguments[1], symbols, loop, ret);
+            if (!xr_isint(end_val)) {
+                xr_runtime_error(X, node->line, "substring 结束位置必须是整数");
+                return xr_null();
+            }
+            end = xr_toint(end_val);
+        }
+        
+        XrString *result = xr_string_substring(str, start, end);
+        return xr_string_value(result);
+    }
+    
+    /* ===== indexOf(substr) ===== */
+    if (strcmp(method, "indexOf") == 0) {
+        if (call_node->arg_count != 1) {
+            xr_runtime_error(X, node->line, "indexOf 方法需要 1 个参数");
+            return xr_null();
+        }
+        
+        XrValue arg = xr_eval_internal(X, call_node->arguments[0], symbols, loop, ret);
+        if (!xr_isstring(arg)) {
+            xr_runtime_error(X, node->line, "indexOf 参数必须是字符串");
+            return xr_null();
+        }
+        
+        xr_Integer pos = xr_string_index_of(str, xr_tostring(arg));
+        return xr_int(pos);
+    }
+    
+    /* ===== contains(substr) ===== */
+    if (strcmp(method, "contains") == 0) {
+        if (call_node->arg_count != 1) {
+            xr_runtime_error(X, node->line, "contains 方法需要 1 个参数");
+            return xr_null();
+        }
+        
+        XrValue arg = xr_eval_internal(X, call_node->arguments[0], symbols, loop, ret);
+        if (!xr_isstring(arg)) {
+            xr_runtime_error(X, node->line, "contains 参数必须是字符串");
+            return xr_null();
+        }
+        
+        bool result = xr_string_contains(str, xr_tostring(arg));
+        return xr_bool(result);
+    }
+    
+    /* ===== startsWith(prefix) ===== */
+    if (strcmp(method, "startsWith") == 0) {
+        if (call_node->arg_count != 1) {
+            xr_runtime_error(X, node->line, "startsWith 方法需要 1 个参数");
+            return xr_null();
+        }
+        
+        XrValue arg = xr_eval_internal(X, call_node->arguments[0], symbols, loop, ret);
+        if (!xr_isstring(arg)) {
+            xr_runtime_error(X, node->line, "startsWith 参数必须是字符串");
+            return xr_null();
+        }
+        
+        bool result = xr_string_starts_with(str, xr_tostring(arg));
+        return xr_bool(result);
+    }
+    
+    /* ===== endsWith(suffix) ===== */
+    if (strcmp(method, "endsWith") == 0) {
+        if (call_node->arg_count != 1) {
+            xr_runtime_error(X, node->line, "endsWith 方法需要 1 个参数");
+            return xr_null();
+        }
+        
+        XrValue arg = xr_eval_internal(X, call_node->arguments[0], symbols, loop, ret);
+        if (!xr_isstring(arg)) {
+            xr_runtime_error(X, node->line, "endsWith 参数必须是字符串");
+            return xr_null();
+        }
+        
+        bool result = xr_string_ends_with(str, xr_tostring(arg));
+        return xr_bool(result);
+    }
+    
+    /* ===== toLowerCase() ===== */
+    if (strcmp(method, "toLowerCase") == 0) {
+        if (call_node->arg_count != 0) {
+            xr_runtime_error(X, node->line, "toLowerCase 方法不需要参数");
+            return xr_null();
+        }
+        
+        XrString *result = xr_string_to_lower_case(str);
+        return xr_string_value(result);
+    }
+    
+    /* ===== toUpperCase() ===== */
+    if (strcmp(method, "toUpperCase") == 0) {
+        if (call_node->arg_count != 0) {
+            xr_runtime_error(X, node->line, "toUpperCase 方法不需要参数");
+            return xr_null();
+        }
+        
+        XrString *result = xr_string_to_upper_case(str);
+        return xr_string_value(result);
+    }
+    
+    /* ===== trim() ===== */
+    if (strcmp(method, "trim") == 0) {
+        if (call_node->arg_count != 0) {
+            xr_runtime_error(X, node->line, "trim 方法不需要参数");
+            return xr_null();
+        }
+        
+        XrString *result = xr_string_trim(str);
+        return xr_string_value(result);
+    }
+    
+    /* ===== split(delimiter) ===== */
+    if (strcmp(method, "split") == 0) {
+        if (call_node->arg_count != 1) {
+            xr_runtime_error(X, node->line, "split 方法需要 1 个参数");
+            return xr_null();
+        }
+        
+        XrValue arg = xr_eval_internal(X, call_node->arguments[0], symbols, loop, ret);
+        if (!xr_isstring(arg)) {
+            xr_runtime_error(X, node->line, "split 参数必须是字符串");
+            return xr_null();
+        }
+        
+        struct XrArray *result = xr_string_split(str, xr_tostring(arg));
+        return xr_value_from_array(result);
+    }
+    
+    /* ===== replace(oldStr, newStr) ===== */
+    if (strcmp(method, "replace") == 0) {
+        if (call_node->arg_count != 2) {
+            xr_runtime_error(X, node->line, "replace 方法需要 2 个参数");
+            return xr_null();
+        }
+        
+        XrValue old_val = xr_eval_internal(X, call_node->arguments[0], symbols, loop, ret);
+        XrValue new_val = xr_eval_internal(X, call_node->arguments[1], symbols, loop, ret);
+        
+        if (!xr_isstring(old_val) || !xr_isstring(new_val)) {
+            xr_runtime_error(X, node->line, "replace 参数必须都是字符串");
+            return xr_null();
+        }
+        
+        XrString *result = xr_string_replace(str, xr_tostring(old_val), xr_tostring(new_val));
+        return xr_string_value(result);
+    }
+    
+    /* ===== replaceAll(oldStr, newStr) ===== */
+    if (strcmp(method, "replaceAll") == 0) {
+        if (call_node->arg_count != 2) {
+            xr_runtime_error(X, node->line, "replaceAll 方法需要 2 个参数");
+            return xr_null();
+        }
+        
+        XrValue old_val = xr_eval_internal(X, call_node->arguments[0], symbols, loop, ret);
+        XrValue new_val = xr_eval_internal(X, call_node->arguments[1], symbols, loop, ret);
+        
+        if (!xr_isstring(old_val) || !xr_isstring(new_val)) {
+            xr_runtime_error(X, node->line, "replaceAll 参数必须都是字符串");
+            return xr_null();
+        }
+        
+        XrString *result = xr_string_replace_all(str, xr_tostring(old_val), xr_tostring(new_val));
+        return xr_string_value(result);
+    }
+    
+    /* ===== repeat(count) ===== */
+    if (strcmp(method, "repeat") == 0) {
+        if (call_node->arg_count != 1) {
+            xr_runtime_error(X, node->line, "repeat 方法需要 1 个参数");
+            return xr_null();
+        }
+        
+        XrValue arg = xr_eval_internal(X, call_node->arguments[0], symbols, loop, ret);
+        if (!xr_isint(arg)) {
+            xr_runtime_error(X, node->line, "repeat 参数必须是整数");
+            return xr_null();
+        }
+        
+        XrString *result = xr_string_repeat(str, xr_toint(arg));
+        return xr_string_value(result);
+    }
+    
+    xr_runtime_error(X, node->line, "未知的字符串方法: %s", method);
+    return xr_null();
 }
 
 /*

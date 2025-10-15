@@ -1,0 +1,126 @@
+// 33_string_basics.xr
+// 字符串基础功能演示
+// v0.10.0: 字符串增强
+
+print("========== 字符串基础 ==========")
+
+// 字符串字面量
+let str1 = "Hello"
+let str2 = "World"
+
+// 字符串拼接
+let greeting = str1 + ", " + str2 + "!"
+print(greeting)  // "Hello, World!"
+
+print("\n========== 字符串属性 ==========")
+
+// 长度属性
+print(str1.length)  // 5
+print(str2.length)  // 5
+print(greeting.length)  // 13
+
+print("\n========== charAt 方法 ==========")
+
+// 获取指定位置的字符
+print(str1.charAt(0))  // "H"
+print(str1.charAt(4))  // "o"
+print(greeting.charAt(7))  // "W"
+
+// 越界返回null
+print(str1.charAt(10))  // null
+
+print("\n========== substring 方法 ==========")
+
+// 截取子串
+print(greeting.substring(0, 5))   // "Hello"
+print(greeting.substring(7, 12))  // "World"
+
+// 省略end参数（到末尾）
+print(greeting.substring(7))      // "World!"
+
+print("\n========== indexOf 方法 ==========")
+
+// 查找子串位置
+print(greeting.indexOf("World"))  // 7
+print(greeting.indexOf("o"))      // 4 (第一次出现)
+print(greeting.indexOf("xyz"))    // -1 (未找到)
+
+print("\n========== contains 方法 ==========")
+
+// 检查是否包含子串
+print(greeting.contains("Hello"))  // true
+print(greeting.contains("World"))  // true
+print(greeting.contains("xyz"))    // false
+
+print("\n========== startsWith/endsWith ==========")
+
+// 检查前缀和后缀
+print(str1.startsWith("He"))   // true
+print(str1.startsWith("lo"))   // false
+
+print(str2.endsWith("ld"))     // true
+print(str2.endsWith("Wo"))     // false
+
+print("\n========== 大小写转换 ==========")
+
+let text = "Hello World"
+
+// 转小写
+let lower = text.toLowerCase()
+print(lower)  // "hello world"
+
+// 转大写
+let upper = text.toUpperCase()
+print(upper)  // "HELLO WORLD"
+
+print("\n========== trim 方法 ==========")
+
+// 去除首尾空白
+let padded = "  Hello  "
+let trimmed = padded.trim()
+print(trimmed)  // "Hello"
+print(trimmed.length)  // 5 (原来是9)
+
+print("\n========== split 方法 (字符串→数组) ==========")
+
+// 分割字符串为数组
+let csv = "apple,banana,orange"
+let fruits = csv.split(",")
+
+print(fruits[0])  // "apple"
+print(fruits[1])  // "banana"
+print(fruits[2])  // "orange"
+print(fruits.length)  // 3
+
+print("\n========== replace 方法 ==========")
+
+let original = "Hello World"
+
+// 替换子串（首次）
+let replaced = original.replace("World", "Xray")
+print(replaced)  // "Hello Xray"
+
+// 替换所有
+let repeated = "aaa"
+let all_replaced = repeated.replaceAll("a", "b")
+print(all_replaced)  // "bbb"
+
+print("\n========== repeat 方法 ==========")
+
+// 重复字符串
+print("*".repeat(10))  // "**********"
+print("ab".repeat(3))  // "ababab"
+
+print("\n========== 综合示例 ==========")
+
+// 字符串处理管道
+let input = "  The Quick Brown Fox  "
+let processed = input
+    .trim()
+    .toLowerCase()
+    .substring(4, 9)
+    
+print(processed)  // "quick"
+
+print("\n========== 完成 ==========")
+
