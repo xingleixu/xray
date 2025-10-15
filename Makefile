@@ -24,9 +24,11 @@ TEST_STRING_TARGET = test/test_string
 TEST_MAP_TARGET = test/test_map
 TEST_CLASS_BASIC_TARGET = test/test_class_basic
 TEST_CLASS_INHERIT_TARGET = test/test_class_inherit
+TEST_BYTECODE_TARGET = test/test_bytecode
+TEST_COMPILER_TARGET = test/test_compiler
 
 # 源文件
-CORE_SRCS = xvalue.c xtype.c xlex.c xstate.c xast.c xparse.c xparse_type.c xparse_oop.c xeval.c xeval_oop.c xscope.c xmem.c fn_proto.c upvalue.c closure.c xarray.c xstring.c xhash.c xmap.c xhashmap.c xclass.c xinstance.c xmethod.c
+CORE_SRCS = xvalue.c xtype.c xlex.c xstate.c xast.c xparse.c xparse_type.c xparse_oop.c xeval.c xeval_oop.c xscope.c xmem.c fn_proto.c upvalue.c closure.c xarray.c xstring.c xhash.c xmap.c xhashmap.c xclass.c xinstance.c xmethod.c xchunk.c xdebug.c xvm.c xcompiler.c
 MAIN_SRC = main.c
 TEST_SRC = test/test_lexer.c
 TEST_FOR_SRC = test/test_for_loop.c
@@ -44,6 +46,8 @@ TEST_STRING_SRC = test/test_string.c
 TEST_MAP_SRC = test/test_map.c
 TEST_CLASS_BASIC_SRC = test/test_class_basic.c
 TEST_CLASS_INHERIT_SRC = test/test_class_inherit.c
+TEST_BYTECODE_SRC = test/test_bytecode.c
+TEST_COMPILER_SRC = test/test_compiler.c
 
 # 对象文件
 CORE_OBJS = $(CORE_SRCS:.c=.o)
@@ -64,6 +68,8 @@ TEST_STRING_OBJ = $(TEST_STRING_SRC:.c=.o)
 TEST_MAP_OBJ = $(TEST_MAP_SRC:.c=.o)
 TEST_CLASS_BASIC_OBJ = $(TEST_CLASS_BASIC_SRC:.c=.o)
 TEST_CLASS_INHERIT_OBJ = $(TEST_CLASS_INHERIT_SRC:.c=.o)
+TEST_BYTECODE_OBJ = $(TEST_BYTECODE_SRC:.c=.o)
+TEST_COMPILER_OBJ = $(TEST_COMPILER_SRC:.c=.o)
 
 # 默认目标
 all: $(TARGET)
@@ -186,6 +192,14 @@ $(TEST_CLASS_BASIC_TARGET): $(CORE_OBJS) $(TEST_CLASS_BASIC_OBJ)
 $(TEST_CLASS_INHERIT_TARGET): $(CORE_OBJS) $(TEST_CLASS_INHERIT_OBJ)
 	$(CC) $(LDFLAGS) -o $@ $^
 	@echo "编译完成: $(TEST_CLASS_INHERIT_TARGET)"
+
+$(TEST_BYTECODE_TARGET): $(CORE_OBJS) $(TEST_BYTECODE_OBJ)
+	$(CC) $(LDFLAGS) -o $@ $^
+	@echo "编译完成: $(TEST_BYTECODE_TARGET)"
+
+$(TEST_COMPILER_TARGET): $(CORE_OBJS) $(TEST_COMPILER_OBJ)
+	$(CC) $(LDFLAGS) -o $@ $^
+	@echo "编译完成: $(TEST_COMPILER_TARGET)"
 
 # 编译规则
 %.o: %.c

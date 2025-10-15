@@ -57,5 +57,25 @@ MemoryStats xmem_get_stats(void);
 /* 打印内存统计（调试用） */
 void xmem_print_stats(void);
 
+/* ========== 便捷宏定义 ========== */
+
+/* 简化的内存分配宏（用于兼容旧代码） */
+#define xr_malloc(size) xmem_alloc(size)
+#define xr_free(ptr) xmem_free(ptr)
+#define xr_realloc(ptr, old_sz, new_sz) xmem_realloc(ptr, old_sz, new_sz)
+
+/* 数组增长宏 */
+#define XR_GROW_CAPACITY(capacity) \
+    ((capacity) < 8 ? 8 : (capacity) * 2)
+
+/* 数组增长辅助宏 */
+#define XR_GROW_ARRAY(type, pointer, old_count, new_count) \
+    (type*)xr_realloc(pointer, sizeof(type) * (old_count), \
+                      sizeof(type) * (new_count))
+
+/* 释放数组宏 */
+#define XR_FREE_ARRAY(type, pointer, old_count) \
+    xr_realloc(pointer, sizeof(type) * (old_count), 0)
+
 #endif /* XMEM_H */
 
