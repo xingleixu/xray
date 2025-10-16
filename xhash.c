@@ -70,7 +70,8 @@ uint32_t xr_hash_bool(int val) {
 /* ========== 统一哈希接口 ========== */
 
 uint32_t xr_hash_value(XrValue val) {
-    switch (val.type) {
+    XrType type = xr_value_type(val);
+    switch (type) {
         case XR_TNULL:
             /* null固定哈希值 */
             return 6;
@@ -104,11 +105,14 @@ uint8_t xr_short_hash(uint32_t hash) {
 
 bool xr_map_keys_equal(XrValue a, XrValue b) {
     /* 类型必须相同 */
-    if (a.type != b.type) {
+    XrType type_a = xr_value_type(a);
+    XrType type_b = xr_value_type(b);
+    
+    if (type_a != type_b) {
         return false;
     }
     
-    switch (a.type) {
+    switch (type_a) {
         case XR_TNULL:
             /* null总是等于null */
             return true;

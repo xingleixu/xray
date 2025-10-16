@@ -15,8 +15,7 @@ XrUpvalue* xr_upvalue_create(XrValue *location) {
     upval->location = location;     /* 指向栈上的位置 */
     
     /* 初始化 closed 为 null */
-    upval->closed.type = XR_TNULL;
-    upval->closed.as.i = 0;
+    upval->closed = xr_null();
     
     /* 链表 */
     upval->next = NULL;
@@ -70,19 +69,20 @@ void xr_upvalue_print(XrUpvalue *upval) {
     
     /* 打印值 */
     printf("  value: ");
-    XrValue *val = upval->location;
-    switch (val->type) {
+    XrValue val = *upval->location;
+    XrType type = xr_value_type(val);
+    switch (type) {
         case XR_TNULL:
             printf("null");
             break;
         case XR_TBOOL:
-            printf("%s", val->as.b ? "true" : "false");
+            printf("%s", xr_tobool(val) ? "true" : "false");
             break;
         case XR_TINT:
-            printf("%lld", val->as.i);
+            printf("%lld", (long long)xr_toint(val));
             break;
         case XR_TFLOAT:
-            printf("%g", val->as.n);
+            printf("%g", xr_tofloat(val));
             break;
         default:
             printf("<object>");

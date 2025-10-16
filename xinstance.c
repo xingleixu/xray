@@ -160,7 +160,9 @@ XrValue xr_instance_call_method(XrayState *X, XrInstance *inst,
     }
     
     /* 5. 调用底层函数 */
-    XrValue result = xr_eval_call_function(method->func, full_args, argc + 1, symbols);
+    /* TODO: 使用字节码VM重新实现 */
+    fprintf(stderr, "实例方法调用: 暂未实现（等待字节码VM支持）\n");
+    XrValue result = xr_null();
     
     xmem_free(full_args);
     return result;
@@ -194,7 +196,9 @@ XrValue xr_instance_construct(XrayState *X, XrClass *cls,
         full_args[i + 1] = args[i];
     }
     
-    xr_eval_call_function(ctor->func, full_args, argc + 1, symbols);
+    /* TODO: 使用字节码VM重新实现 */
+    fprintf(stderr, "构造函数调用: 暂未实现（等待字节码VM支持）\n");
+    (void)ctor;  /* 抑制未使用警告 */
     xmem_free(full_args);
     
     return this_value;

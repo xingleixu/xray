@@ -107,11 +107,12 @@ typedef enum {
     OP_GE,          /* if (R[A] >= R[B]) != k then PC++ */
     OP_GEI,         /* if (R[A] >= sB) != k then PC++ */
     
-    /* === 控制流（5个）=== */
+    /* === 控制流（6个）=== */
     OP_JMP,         /* PC += sJ */
     OP_TEST,        /* if (R[A]) != k then PC++ */
     OP_TESTSET,     /* if (R[B]) != k then PC++ else R[A] = R[B] */
     OP_CALL,        /* R[A]...R[A+C-2] = R[A](R[A+1]...R[A+B-1]) */
+    OP_TAILCALL,    /* R[A](R[A+1]...R[A+B-1]) - 尾调用优化 */
     OP_RETURN,      /* return R[A]...R[A+B-2] */
     
     /* === 表操作（8个）=== */
@@ -144,6 +145,9 @@ typedef enum {
     OP_GETGLOBAL,   /* R[A] = _G[K[Bx]] */
     OP_SETGLOBAL,   /* _G[K[Bx]] = R[A] */
     OP_DEFGLOBAL,   /* 定义全局变量 */
+    
+    /* === 内置函数（1个）=== */
+    OP_PRINT,       /* print(R[A]) - 打印寄存器值 */
     
     /* === 占位符 === */
     OP_NOP,         /* 无操作 */
@@ -184,6 +188,7 @@ typedef enum {
 #define GETARG_A(i)    (((i) >> 8)  & 0xFF)
 #define GETARG_B(i)    (((i) >> 16) & 0xFF)
 #define GETARG_C(i)    (((i) >> 24) & 0xFF)
+#define GETARG_sC(i)   ((int8_t)(GETARG_C(i)))  /* 有符号C参数 */
 #define GETARG_Bx(i)   (((i) >> 16) & 0xFFFF)
 #define GETARG_sBx(i)  ((int)(GETARG_Bx(i)) - MAXARG_sBx)
 #define GETARG_Ax(i)   (((i) >> 8)  & 0xFFFFFF)
@@ -223,6 +228,9 @@ typedef struct Proto {
     Instruction *code;      /* 字节码数组 */
     int sizecode;           /* 字节码数量 */
     int capacity_code;      /* 字节码容量 */
+    
+    /* 全局变量信息（Wren风格优化） */
+    int num_globals;        /* 全局变量数量 */
     
     /* 常量表 */
     ValueArray constants;   /* 常量池 */

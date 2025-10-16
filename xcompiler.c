@@ -16,10 +16,17 @@ static Compiler *current = NULL;
 /* 当前行号（用于调试信息） */
 static int current_line = 1;
 
+/* 全局变量索引（Wren风格优化） */
+static GlobalVar global_vars[MAX_GLOBALS];
+static int global_var_count = 0;
+
 /* ========== 前向声明 ========== */
+
+static int get_or_add_global(Compiler *compiler, XrString *name);
 
 static int compile_literal(Compiler *compiler, LiteralNode *node);
 static int compile_binary(Compiler *compiler, BinaryNode *node, AstNodeType type);
+static int compile_comparison(Compiler *compiler, BinaryNode *node, AstNodeType type);
 static int compile_unary(Compiler *compiler, UnaryNode *node, AstNodeType type);
 static int compile_variable(Compiler *compiler, VariableNode *node);
 static void compile_assignment(Compiler *compiler, AssignmentNode *node);
@@ -30,6 +37,9 @@ static void compile_for(Compiler *compiler, ForStmtNode *node);
 static int compile_call(Compiler *compiler, CallExprNode *node);
 static void compile_function(Compiler *compiler, FunctionDeclNode *node);
 static void compile_return(Compiler *compiler, ReturnStmtNode *node);
+static int compile_array_literal(Compiler *compiler, ArrayLiteralNode *node);
+static int compile_index_get(Compiler *compiler, IndexGetNode *node);
+static void compile_index_set(Compiler *compiler, IndexSetNode *node);
 
 /* ========== 错误处理 ========== */
 
@@ -99,6 +109,16 @@ static void emit_instruction(Compiler *compiler, Instruction inst) {
 ** 发射ABC格式指令
 */
 void xr_emit_ABC(Compiler *compiler, OpCode op, int a, int b, int c) {
+    Instruction inst = CREATE_ABC(op, a, b, c);
+    emit_instruction(compiler, inst);
+}
+
+/*
+** 发射ABsC格式指令（B是寄存器，C是有符号立即数）
+*/
+void xr_emit_ABsC(Compiler *compiler, OpCode op, int a, int b, int sc) {
+    /* 将有符号整数转换为无符号8位（模256） */
+    uint8_t c = (uint8_t)(sc & 0xFF);
     Instruction inst = CREATE_ABC(op, a, b, c);
     emit_instruction(compiler, inst);
 }
@@ -207,6 +227,27 @@ void xr_define_local(Compiler *compiler, XrString *name) {
     
     /* 分配寄存器 */
     int reg = xr_allocreg(compiler);
+    
+    /* 添加到局部变量列表 */
+    Local *local = &compiler->locals[compiler->local_count++];
+    local->name = name;
+    local->reg = reg;
+    local->depth = compiler->scope_depth;
+    local->is_captured = false;
+    
+    /* 保留寄存器 */
+    xr_reservereg(compiler);
+}
+
+/*
+** 定义局部变量（使用指定的寄存器）
+** 用于函数定义等需要精确控制寄存器的情况
+*/
+static void define_local_with_reg(Compiler *compiler, XrString *name, int reg) {
+    if (compiler->local_count >= MAXREGS) {
+        xr_compiler_error(compiler, "Too many local variables");
+        return;
+    }
     
     /* 添加到局部变量列表 */
     Local *local = &compiler->locals[compiler->local_count++];
@@ -340,13 +381,14 @@ Proto *xr_compiler_end(Compiler *compiler) {
 static int compile_literal(Compiler *compiler, LiteralNode *node) {
     int reg = xr_allocreg(compiler);
     
-    switch (node->value.type) {
+    XrType type = xr_value_type(node->value);
+    switch (type) {
         case XR_TNULL:
             xr_emit_ABC(compiler, OP_LOADNIL, reg, 0, 0);
             break;
         
         case XR_TBOOL:
-            if (node->value.as.b) {
+            if (xr_tobool(node->value)) {
                 xr_emit_ABC(compiler, OP_LOADTRUE, reg, 0, 0);
             } else {
                 xr_emit_ABC(compiler, OP_LOADFALSE, reg, 0, 0);
@@ -354,7 +396,7 @@ static int compile_literal(Compiler *compiler, LiteralNode *node) {
             break;
         
         case XR_TINT: {
-            xr_Integer ival = node->value.as.i;
+            xr_Integer ival = xr_toint(node->value);
             /* 尝试使用立即数指令 */
             if (ival >= -MAXARG_sBx && ival <= MAXARG_sBx) {
                 xr_emit_AsBx(compiler, OP_LOADI, reg, (int)ival);
@@ -447,13 +489,41 @@ static int compile_binary(Compiler *compiler, BinaryNode *node, AstNodeType type
         return compile_or(compiler, node);
     }
     
-    /* 编译左操作数 */
+    /* 优化：检查右操作数是否是小整数常量 */
+    if (node->right->type == AST_LITERAL_INT) {
+        LiteralNode *lit = (LiteralNode *)&node->right->as;
+        xr_Integer value = xr_toint(lit->value);
+        
+        /* 如果是小整数（-128到127），使用立即数指令 */
+        if (value >= -128 && value <= 127) {
+            int rb = xr_compile_expression(compiler, node->left);
+            int ra = xr_allocreg(compiler);
+            
+            /* 选择优化指令 */
+            OpCode op;
+            bool use_optimized = true;
+            
+            switch (type) {
+                case AST_BINARY_ADD: op = OP_ADDI; break;
+                case AST_BINARY_SUB: op = OP_SUBI; break;
+                case AST_BINARY_MUL: op = OP_MULI; break;
+                default:
+                    use_optimized = false;
+                    break;
+            }
+            
+            if (use_optimized) {
+                /* 发射优化指令（ABsC格式） */
+                xr_emit_ABsC(compiler, op, ra, rb, (int)value);
+                xr_freereg(compiler, rb);
+                return ra;
+            }
+        }
+    }
+    
+    /* 通用路径：编译两个操作数 */
     int rb = xr_compile_expression(compiler, node->left);
-    
-    /* 编译右操作数 */
     int rc = xr_compile_expression(compiler, node->right);
-    
-    /* 分配目标寄存器 */
     int ra = xr_allocreg(compiler);
     
     /* 根据节点类型选择指令 */
@@ -466,14 +536,6 @@ static int compile_binary(Compiler *compiler, BinaryNode *node, AstNodeType type
         case AST_BINARY_DIV: op = OP_DIV; break;
         case AST_BINARY_MOD: op = OP_MOD; break;
         
-        /* 比较运算（暂时使用基础指令，后续优化） */
-        case AST_BINARY_EQ: op = OP_EQ; break;
-        case AST_BINARY_NE: op = OP_EQ; break;  /* 需要取反 */
-        case AST_BINARY_LT: op = OP_LT; break;
-        case AST_BINARY_LE: op = OP_LE; break;
-        case AST_BINARY_GT: op = OP_LT; break;  /* 交换操作数 */
-        case AST_BINARY_GE: op = OP_LE; break;  /* 交换操作数 */
-        
         default:
             xr_compiler_error(compiler, "Unknown binary operator: %d", type);
             return ra;
@@ -481,6 +543,89 @@ static int compile_binary(Compiler *compiler, BinaryNode *node, AstNodeType type
     
     /* 发射指令 */
     xr_emit_ABC(compiler, op, ra, rb, rc);
+    
+    /* 释放操作数寄存器 */
+    xr_freereg(compiler, rb);
+    xr_freereg(compiler, rc);
+    
+    return ra;
+}
+
+/*
+** 编译比较运算（返回布尔值）
+*/
+static int compile_comparison(Compiler *compiler, BinaryNode *node, AstNodeType type) {
+    /* 编译左操作数 */
+    int rb = xr_compile_expression(compiler, node->left);
+    
+    /* 编译右操作数 */
+    int rc = xr_compile_expression(compiler, node->right);
+    
+    /* 分配目标寄存器 */
+    int ra = xr_allocreg(compiler);
+    
+    /* 根据节点类型选择指令 */
+    OpCode op;
+    bool negate = false;
+    
+    switch (type) {
+        case AST_BINARY_EQ: op = OP_EQ; break;
+        case AST_BINARY_NE: op = OP_EQ; negate = true; break;
+        case AST_BINARY_LT: op = OP_LT; break;
+        case AST_BINARY_LE: op = OP_LE; break;
+        case AST_BINARY_GT: op = OP_GT; break;
+        case AST_BINARY_GE: op = OP_GE; break;
+        
+        default:
+            xr_compiler_error(compiler, "Unknown comparison operator: %d", type);
+            return ra;
+    }
+    
+    /* 生成比较代码并返回布尔值
+     * 
+     * 策略：使用条件跳转来设置布尔值
+     * 
+     * 关键理解：OP_LT等指令格式是 if (result != k) then skip next
+     * - k=1: false(0) != 1 → skip, true(1) != 1 → don't skip
+     * 
+     * 正确的布局（k=1）：
+     *   CMP R[a] R[b] 1      ; false时跳过JMP
+     *   JMP true_label       ; true时执行这个
+     *   LOADFALSE R[result]  ; false时跳过JMP，执行这个
+     *   JMP end
+     *   true_label:
+     *   LOADTRUE R[result]
+     *   end:
+     */
+    
+    /* 发射比较指令（k=1：false时跳过下一条指令） */
+    xr_emit_ABC(compiler, op, rb, rc, 1);
+    
+    /* 比较为true时的跳转 */
+    int true_jump = xr_emit_jump(compiler, OP_JMP);
+    
+    /* 比较为false：加载false（跳过了JMP才到这里） */
+    if (negate) {
+        xr_emit_ABC(compiler, OP_LOADTRUE, ra, 0, 0);
+    } else {
+        xr_emit_ABC(compiler, OP_LOADFALSE, ra, 0, 0);
+    }
+    
+    /* 跳过true分支 */
+    int end_jump = xr_emit_jump(compiler, OP_JMP);
+    
+    /* 回填true跳转 */
+    xr_patch_jump(compiler, true_jump);
+    
+    /* 比较为true：加载true */
+    if (negate) {
+        xr_emit_ABC(compiler, OP_LOADFALSE, ra, 0, 0);
+    } else {
+        xr_emit_ABC(compiler, OP_LOADTRUE, ra, 0, 0);
+    }
+    
+    /* 回填end跳转 */
+    xr_patch_jump(compiler, end_jump);
     
     /* 释放操作数寄存器 */
     xr_freereg(compiler, rb);
@@ -539,11 +684,10 @@ static int compile_variable(Compiler *compiler, VariableNode *node) {
         return ra;
     }
     
-    /* 全局变量 */
+    /* 全局变量（Wren风格：使用固定索引） */
     int ra = xr_allocreg(compiler);
-    XrValue name_val = xr_string_value(name_str);
-    int kidx = xr_bc_proto_add_constant(compiler->proto, name_val);
-    xr_emit_ABx(compiler, OP_GETGLOBAL, ra, kidx);
+    int global_index = get_or_add_global(compiler, name_str);
+    xr_emit_ABx(compiler, OP_GETGLOBAL, ra, global_index);  /* 索引而非常量 */
     return ra;
 }
 
@@ -567,17 +711,24 @@ int xr_compile_expression(Compiler *compiler, AstNode *node) {
             return compile_literal(compiler, (LiteralNode *)&node->as);
         
         /* 二元运算 */
+        /* 算术运算 */
         case AST_BINARY_ADD:
         case AST_BINARY_SUB:
         case AST_BINARY_MUL:
         case AST_BINARY_DIV:
         case AST_BINARY_MOD:
+            return compile_binary(compiler, (BinaryNode *)&node->as, node->type);
+        
+        /* 比较运算（返回布尔值） */
         case AST_BINARY_EQ:
         case AST_BINARY_NE:
         case AST_BINARY_LT:
         case AST_BINARY_LE:
         case AST_BINARY_GT:
         case AST_BINARY_GE:
+            return compile_comparison(compiler, (BinaryNode *)&node->as, node->type);
+        
+        /* 逻辑运算（短路求值） */
         case AST_BINARY_AND:
         case AST_BINARY_OR:
             return compile_binary(compiler, (BinaryNode *)&node->as, node->type);
@@ -606,8 +757,18 @@ int xr_compile_expression(Compiler *compiler, AstNode *node) {
         case AST_CALL_EXPR:
             return compile_call(compiler, (CallExprNode *)&node->as);
         
+        /* 数组操作 */
+        case AST_ARRAY_LITERAL:
+            return compile_array_literal(compiler, &node->as.array_literal);
+        
+        case AST_INDEX_GET:
+            return compile_index_get(compiler, &node->as.index_get);
+        
         default:
-            xr_compiler_error(compiler, "Unsupported expression type: %d", node->type);
+            xr_compiler_error(compiler, "Unsupported expression type: %d (%s at line %d)", 
+                            node->type, 
+                            (node->type == 41 ? "AST_BINARY_EQ?" : "Unknown"),
+                            node->line);
             return xr_allocreg(compiler);
     }
 }
@@ -618,6 +779,17 @@ int xr_compile_expression(Compiler *compiler, AstNode *node) {
 ** 编译表达式语句
 */
 static void compile_expr_stmt(Compiler *compiler, AstNode *expr) {
+    /* 特殊处理赋值语句（它们不是表达式） */
+    if (expr->type == AST_ASSIGNMENT) {
+        compile_assignment(compiler, &expr->as.assignment);
+        return;
+    }
+    if (expr->type == AST_INDEX_SET) {
+        compile_index_set(compiler, &expr->as.index_set);
+        return;
+    }
+    
+    /* 其他表达式语句 */
     int reg = xr_compile_expression(compiler, expr);
     xr_freereg(compiler, reg);
 }
@@ -630,12 +802,11 @@ static void compile_var_decl(Compiler *compiler, VarDeclNode *node) {
     XrString *name_str = xr_string_new(node->name, strlen(node->name));
     
     if (compiler->scope_depth == 0) {
-        /* 全局变量 */
+        /* 全局变量（Wren风格：使用固定索引） */
         int reg = xr_compile_expression(compiler, node->initializer);
         
-        XrValue name_val = xr_string_value(name_str);
-        int kidx = xr_bc_proto_add_constant(compiler->proto, name_val);
-        xr_emit_ABx(compiler, OP_SETGLOBAL, reg, kidx);
+        int global_index = get_or_add_global(compiler, name_str);
+        xr_emit_ABx(compiler, OP_SETGLOBAL, reg, global_index);  /* 索引而非常量 */
         
         xr_freereg(compiler, reg);
     } else {
@@ -662,9 +833,8 @@ static void compile_print(Compiler *compiler, PrintNode *node) {
     /* 编译表达式 */
     int reg = xr_compile_expression(compiler, node->expr);
     
-    /* TODO: 调用内置print函数 */
-    /* 暂时：直接发射打印指令（简化） */
-    /* 将来：通过函数调用机制实现 */
+    /* 发射打印指令 */
+    xr_emit_ABC(compiler, OP_PRINT, reg, 0, 0);
     
     xr_freereg(compiler, reg);
 }
@@ -694,10 +864,9 @@ static void compile_assignment(Compiler *compiler, AssignmentNode *node) {
             xr_emit_ABC(compiler, OP_SETUPVAL, value_reg, upvalue, 0);
             xr_freereg(compiler, value_reg);
         } else {
-            /* 全局变量赋值 */
-            XrValue name_val = xr_string_value(name_str);
-            int kidx = xr_bc_proto_add_constant(compiler->proto, name_val);
-            xr_emit_ABx(compiler, OP_SETGLOBAL, value_reg, kidx);
+            /* 全局变量赋值（Wren风格：使用固定索引） */
+            int global_index = get_or_add_global(compiler, name_str);
+            xr_emit_ABx(compiler, OP_SETGLOBAL, value_reg, global_index);  /* 索引而非常量 */
             xr_freereg(compiler, value_reg);
         }
     }
@@ -710,8 +879,24 @@ static void compile_if(Compiler *compiler, IfStmtNode *node) {
     /* 编译条件 */
     int cond_reg = xr_compile_expression(compiler, node->condition);
     
-    /* if not cond then jump to else */
-    xr_emit_ABC(compiler, OP_TEST, cond_reg, 1, 0);  /* k=1表示false跳转 */
+    /* if cond is false then jump to else
+     * OP_TEST的语义：if is_falsey(R[a]) == k then skip next
+     * k=1: 当值为false时跳过（即条件为false时跳到else）
+     * k=0: 当值为true时跳过（即条件为true时跳到then）
+     * 
+     * 我们想要：当条件为false时跳到else
+     * 所以检查：if is_falsey(R[a]) == 1 (即R[a]是false)，则跳过JMP
+     * 
+     * 等等，这样还是不对！让我重新思考...
+     * 
+     * 实际上：
+     * TEST R[a] 1: 如果R[a]为false，跳过下一条JMP -> 不跳转 -> 执行then
+     * 这是反的！
+     * 
+     * TEST R[a] 0: 如果R[a]为true，跳过下一条JMP -> 不跳转 -> 执行then
+     * 这才对！
+     */
+    xr_emit_ABC(compiler, OP_TEST, cond_reg, 0, 0);  /* k=0表示true时跳过JMP */
     int then_jump = xr_emit_jump(compiler, OP_JMP);
     xr_freereg(compiler, cond_reg);
     
@@ -778,7 +963,15 @@ static void compile_for(Compiler *compiler, ForStmtNode *node) {
     int exit_jump = -1;
     if (node->condition != NULL) {
         int cond_reg = xr_compile_expression(compiler, node->condition);
-        xr_emit_ABC(compiler, OP_TEST, cond_reg, 1, 0);
+        /* OP_TEST k=0: 如果条件为false则跳过下一条指令（跳过JMP，继续循环）*/
+        /* 我们希望false时跳出循环，所以需要k=0，然后JMP跳出 */
+        /* 但实际逻辑是：TEST如果false跳过JMP，我们想false时跳出，所以不应该跳过JMP */
+        /* 正确的逻辑：k=0表示false时跳过，我们要false时跳出，所以k应该是0，然后反转JMP逻辑 */
+        /* 简化：TEST k=0 + JMP表示"false时跳过JMP继续，true时执行JMP跳出" */
+        /* 这正好相反！我们要"false时跳出，true时继续" */
+        /* 所以应该用k=0，但是不跳过JMP，而是跳过继续的代码 */
+        /* 让我换个思路：if (cond) { body } 应该是 TEST cond 0; JMP exit; body; exit: */
+        xr_emit_ABC(compiler, OP_TEST, cond_reg, 0, 0);
         exit_jump = xr_emit_jump(compiler, OP_JMP);
         xr_freereg(compiler, cond_reg);
     }
@@ -811,6 +1004,18 @@ static void compile_for(Compiler *compiler, ForStmtNode *node) {
 ** 编译函数定义
 */
 static void compile_function(Compiler *compiler, FunctionDeclNode *node) {
+    /* 如果是命名局部函数，先在当前作用域定义函数名 */
+    /* 这样函数体编译时可以通过upvalue递归访问自己 */
+    int func_reg = -1;
+    XrString *name_str = NULL;
+    
+    if (node->name != NULL && compiler->scope_depth > 0) {
+        /* 局部函数：先分配寄存器并定义变量（值暂时为nil） */
+        name_str = xr_string_new(node->name, strlen(node->name));
+        func_reg = xr_allocreg(compiler);
+        define_local_with_reg(compiler, name_str, func_reg);
+    }
+    
     /* 创建新的编译器（嵌套） */
     Compiler function_compiler;
     xr_compiler_init(&function_compiler, FUNCTION_FUNCTION);
@@ -818,7 +1023,9 @@ static void compile_function(Compiler *compiler, FunctionDeclNode *node) {
     
     /* 设置函数名 */
     if (node->name != NULL) {
-        XrString *name_str = xr_string_new(node->name, strlen(node->name));
+        if (name_str == NULL) {
+            name_str = xr_string_new(node->name, strlen(node->name));
+        }
         function_compiler.proto->name = name_str;
     }
     
@@ -844,32 +1051,35 @@ static void compile_function(Compiler *compiler, FunctionDeclNode *node) {
         /* 将函数原型添加到父编译器 */
         int proto_idx = xr_bc_proto_add_proto(compiler->proto, proto);
         
-        /* 创建闭包 */
-        int reg = xr_allocreg(compiler);
-        xr_emit_ABx(compiler, OP_CLOSURE, reg, proto_idx);
-        
         /* 如果是命名函数，定义为变量 */
         if (node->name != NULL) {
-            XrString *name_str = xr_string_new(node->name, strlen(node->name));
-            
             if (compiler->scope_depth == 0) {
-                /* 全局函数 */
-                XrValue name_val = xr_string_value(name_str);
-                int kidx = xr_bc_proto_add_constant(compiler->proto, name_val);
-                xr_emit_ABx(compiler, OP_SETGLOBAL, reg, kidx);
+                /* 全局函数（Wren风格：使用固定索引） */
+                int reg = xr_allocreg(compiler);
+                xr_emit_ABx(compiler, OP_CLOSURE, reg, proto_idx);
+                
+                int global_index = get_or_add_global(compiler, name_str);
+                xr_emit_ABx(compiler, OP_SETGLOBAL, reg, global_index);  /* 索引而非常量 */
                 xr_freereg(compiler, reg);
             } else {
-                /* 局部函数 */
-                xr_define_local(compiler, name_str);
+                /* 局部函数 - 使用之前分配的寄存器，现在填充闭包 */
+                xr_emit_ABx(compiler, OP_CLOSURE, func_reg, proto_idx);
+                /* 函数名已经在前面定义，不需要再定义 */
             }
+        } else {
+            /* 匿名函数表达式 */
+            int reg = xr_allocreg(compiler);
+            xr_emit_ABx(compiler, OP_CLOSURE, reg, proto_idx);
+            /* 不定义变量，返回寄存器 */
         }
     }
 }
 
 /*
 ** 编译函数调用
+** is_tail: 是否是尾调用位置（Phase 2新增）
 */
-static int compile_call(Compiler *compiler, CallExprNode *node) {
+static int compile_call_internal(Compiler *compiler, CallExprNode *node, bool is_tail) {
     /* 编译被调用的函数表达式 */
     int func_reg = xr_compile_expression(compiler, node->callee);
     
@@ -883,16 +1093,30 @@ static int compile_call(Compiler *compiler, CallExprNode *node) {
         }
     }
     
-    /* 发射调用指令 */
-    /* CALL A B C: R[A]...R[A+C-2] = R[A](R[A+1]...R[A+B-1]) */
-    xr_emit_ABC(compiler, OP_CALL, func_reg, node->arg_count, 1);
-    
-    /* 结果在func_reg中 */
-    return func_reg;
+    /* ⭐ Phase 2: 根据位置选择CALL或TAILCALL */
+    if (is_tail && compiler->type == FUNCTION_FUNCTION) {
+        /* 尾调用：复用栈帧，不增加调用深度 */
+        xr_emit_ABC(compiler, OP_TAILCALL, func_reg, node->arg_count, 0);
+        /* 尾调用后不返回值到寄存器（直接返回） */
+        return -1;  /* 特殊标记：无返回寄存器 */
+    } else {
+        /* 普通调用 */
+        xr_emit_ABC(compiler, OP_CALL, func_reg, node->arg_count, 1);
+        /* 结果在func_reg中 */
+        return func_reg;
+    }
+}
+
+/*
+** 编译函数调用（普通版本，兼容性包装）
+*/
+static int compile_call(Compiler *compiler, CallExprNode *node) {
+    return compile_call_internal(compiler, node, false);
 }
 
 /*
 ** 编译return语句
+** ⭐ Phase 2: 支持尾调用优化
 */
 static void compile_return(Compiler *compiler, ReturnStmtNode *node) {
     if (compiler->type == FUNCTION_SCRIPT) {
@@ -901,14 +1125,105 @@ static void compile_return(Compiler *compiler, ReturnStmtNode *node) {
     }
     
     if (node->value != NULL) {
-        /* 编译返回值 */
-        int reg = xr_compile_expression(compiler, node->value);
-        xr_emit_ABC(compiler, OP_RETURN, reg, 1, 0);
-        xr_freereg(compiler, reg);
+        /* ⭐ Phase 2: 检测尾调用
+        ** 如果return的表达式是函数调用，这就是尾调用位置
+        */
+        if (node->value->type == AST_CALL_EXPR) {
+            /* 尾调用优化：使用OP_TAILCALL代替OP_CALL+OP_RETURN */
+            compile_call_internal(compiler, (CallExprNode *)&node->value->as, true);
+            /* TAILCALL指令已经包含了return语义，无需额外的RETURN指令 */
+        } else {
+            /* 普通return：先计算表达式，再返回 */
+            int reg = xr_compile_expression(compiler, node->value);
+            xr_emit_ABC(compiler, OP_RETURN, reg, 1, 0);
+            xr_freereg(compiler, reg);
+        }
     } else {
         /* 返回null */
         xr_emit_ABC(compiler, OP_RETURN, 0, 0, 0);
     }
+}
+
+/*
+** 编译数组字面量
+*/
+static int compile_array_literal(Compiler *compiler, ArrayLiteralNode *node) {
+    /* 分配目标寄存器 */
+    int array_reg = xr_allocreg(compiler);
+    
+    /* 创建空数组 */
+    /* NEWTABLE A B C: R[A] = {} (B=数组大小提示, C=哈希大小提示) */
+    xr_emit_ABC(compiler, OP_NEWTABLE, array_reg, node->count, 0);
+    
+    /* 使用SETLIST批量设置元素 */
+    if (node->count > 0) {
+        /* 编译所有元素到连续寄存器 */
+        for (int i = 0; i < node->count; i++) {
+            int elem_reg = xr_compile_expression(compiler, node->elements[i]);
+            
+            /* 确保元素在连续寄存器中 */
+            int target_reg = array_reg + i + 1;
+            if (elem_reg != target_reg) {
+                xr_emit_ABC(compiler, OP_MOVE, target_reg, elem_reg, 0);
+                xr_freereg(compiler, elem_reg);
+            }
+        }
+        
+        /* SETLIST A B C: R[A][i] = R[A+i], 1 <= i <= B */
+        xr_emit_ABC(compiler, OP_SETLIST, array_reg, node->count, 0);
+        
+        /* 释放临时寄存器 */
+        for (int i = 0; i < node->count; i++) {
+            xr_freereg(compiler, array_reg + i + 1);
+        }
+    }
+    
+    return array_reg;
+}
+
+/*
+** 编译索引访问
+*/
+static int compile_index_get(Compiler *compiler, IndexGetNode *node) {
+    /* 编译数组表达式 */
+    int array_reg = xr_compile_expression(compiler, node->array);
+    
+    /* 编译索引表达式 */
+    int index_reg = xr_compile_expression(compiler, node->index);
+    
+    /* 分配结果寄存器 */
+    int result_reg = xr_allocreg(compiler);
+    
+    /* 使用通用GETTABLE指令 */
+    /* TODO: 添加GETI优化（检测整数常量索引） */
+    xr_emit_ABC(compiler, OP_GETTABLE, result_reg, array_reg, index_reg);
+    xr_freereg(compiler, index_reg);
+    
+    xr_freereg(compiler, array_reg);
+    
+    return result_reg;
+}
+
+/*
+** 编译索引赋值
+*/
+static void compile_index_set(Compiler *compiler, IndexSetNode *node) {
+    /* 编译数组表达式 */
+    int array_reg = xr_compile_expression(compiler, node->array);
+    
+    /* 编译索引表达式 */
+    int index_reg = xr_compile_expression(compiler, node->index);
+    
+    /* 编译值表达式 */
+    int value_reg = xr_compile_expression(compiler, node->value);
+    
+    /* 使用通用SETTABLE指令 */
+    /* TODO: 添加SETI优化（检测整数常量索引） */
+    xr_emit_ABC(compiler, OP_SETTABLE, array_reg, index_reg, value_reg);
+    xr_freereg(compiler, index_reg);
+    
+    xr_freereg(compiler, value_reg);
+    xr_freereg(compiler, array_reg);
 }
 
 /*
@@ -960,6 +1275,10 @@ void xr_compile_statement(Compiler *compiler, AstNode *node) {
             compile_return(compiler, &node->as.return_stmt);
             break;
         
+        case AST_INDEX_SET:
+            compile_index_set(compiler, &node->as.index_set);
+            break;
+        
         case AST_BLOCK: {
             BlockNode *block = &node->as.block;
             xr_begin_scope(compiler);
@@ -986,15 +1305,56 @@ void xr_compile_statement(Compiler *compiler, AstNode *node) {
 
 /* ========== 编译API ========== */
 
+/* ========== 全局变量索引管理（Wren风格优化）========== */
+
+/*
+** 获取或添加全局变量索引
+*/
+static int get_or_add_global(Compiler *compiler, XrString *name) {
+    /* 查找是否已存在 */
+    for (int i = 0; i < global_var_count; i++) {
+        if (global_vars[i].name != NULL && 
+            strcmp(global_vars[i].name->chars, name->chars) == 0) {
+            return i;
+        }
+    }
+    
+    /* 添加新的全局变量 */
+    if (global_var_count >= MAX_GLOBALS) {
+        xr_compiler_error(compiler, "Too many global variables (max %d)", MAX_GLOBALS);
+        return 0;
+    }
+    
+    int index = global_var_count++;
+    global_vars[index].name = name;
+    global_vars[index].index = index;
+    
+    return index;
+}
+
 /*
 ** 编译AST到函数原型
 */
 Proto *xr_compile(AstNode *ast) {
+    /* 重置全局变量计数（每次编译重新开始） */
+    global_var_count = 0;
+    for (int i = 0; i < MAX_GLOBALS; i++) {
+        global_vars[i].name = NULL;
+        global_vars[i].index = -1;
+    }
+    
     Compiler compiler;
     xr_compiler_init(&compiler, FUNCTION_SCRIPT);
     
+    /* 设置全局变量数组指针 */
+    compiler.globals = global_vars;
+    compiler.global_count = &global_var_count;
+    
     /* 编译AST */
     xr_compile_statement(&compiler, ast);
+    
+    /* 将全局变量数量保存到Proto（用于VM初始化） */
+    compiler.proto->num_globals = global_var_count;
     
     /* 结束编译 */
     return xr_compiler_end(&compiler);

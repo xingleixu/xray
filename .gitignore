@@ -42,3 +42,17 @@ Thumbs.db
 
 # 日志文件
 *.log
+
+# 临时提交信息文件
+COMMIT_*.txt
+*COMMIT*.txt
+.git_commit*.txt
+
+# 测试可执行文件
+test/test_*
+!test/*.c
+!test/*.xr
+
+# 临时文件
+test_mode.c
+run_all_tests.sh

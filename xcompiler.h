@@ -51,6 +51,16 @@ typedef struct {
     int nactvar;        /* 活跃局部变量数量 */
 } RegState;
 
+/* ========== 全局变量索引（Wren风格优化）========== */
+
+#define MAX_GLOBALS 256
+
+/* 全局变量信息 */
+typedef struct {
+    XrString *name;     /* 变量名 */
+    int index;          /* 固定索引 */
+} GlobalVar;
+
 /* ========== 编译器上下文 ========== */
 
 /* 编译器状态 */
@@ -73,6 +83,10 @@ typedef struct Compiler {
     int loop_depth;              /* 循环嵌套深度 */
     int loop_start;              /* 当前循环起始位置 */
     int loop_scope;              /* 当前循环作用域深度 */
+    
+    /* 全局变量索引表（Wren风格优化） */
+    GlobalVar *globals;          /* 全局变量数组（共享） */
+    int *global_count;           /* 全局变量数量（共享） */
     
     /* 错误标志 */
     bool had_error;

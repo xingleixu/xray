@@ -26,7 +26,7 @@ static const char *opcode_names[] = {
     "GT", "GTI", "GE", "GEI",
     
     /* 控制流 */
-    "JMP", "TEST", "TESTSET", "CALL", "RETURN",
+    "JMP", "TEST", "TESTSET", "CALL", "TAILCALL", "RETURN",
     
     /* 表操作 */
     "NEWTABLE", "GETTABLE", "GETI", "GETFIELD",
@@ -41,6 +41,9 @@ static const char *opcode_names[] = {
     
     /* 全局变量 */
     "GETGLOBAL", "SETGLOBAL", "DEFGLOBAL",
+    
+    /* 内置函数 */
+    "PRINT",
     
     /* 占位符 */
     "NOP",

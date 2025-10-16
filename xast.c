@@ -1035,7 +1035,7 @@ void xr_ast_print(AstNode *node, int indent) {
             printf("(%g)", xr_tofloat(node->as.literal.value));  /* 新API：不需要& */
             break;
         case AST_LITERAL_STRING:
-            printf("(\"%s\")", (char *)node->as.literal.value.as.obj);
+            printf("(\"%s\")", (char *)xr_toobj(node->as.literal.value));
             break;
         case AST_LITERAL_NULL:
             printf("(null)");

@@ -25,7 +25,7 @@ typedef struct XrString XrString;
 ** 1 = NaN Tagging（性能模式，8字节）- 第13阶段
 */
 #ifndef XR_NAN_TAGGING
-  #define XR_NAN_TAGGING 0
+  #define XR_NAN_TAGGING 1  /* ⚡ 启用NaN Tagging优化！*/
 #endif
 
 /* 
@@ -38,7 +38,8 @@ typedef enum {
     XR_TINT,        /* 整数类型 */
     XR_TFLOAT,      /* 浮点数类型 */
     XR_TSTRING,     /* 字符串类型 */
-    XR_TFUNCTION,   /* 函数类型 */
+    XR_TFUNCTION,   /* 函数类型（Xray闭包） */
+    XR_TCFUNCTION,  /* C函数类型（v0.14.1新增）*/
     XR_TARRAY,      /* 数组类型 */
     XR_TSET,        /* 集合类型 */
     XR_TMAP,        /* 映射类型 */
@@ -64,22 +65,31 @@ typedef struct XrObject {
   /* ========== 性能模式（第13阶段启用）========== */
   typedef uint64_t XrValue;
   
-  /* NaN Tagging宏定义（第13阶段实现）*/
+  /* NaN Tagging宏定义 */
   #define XR_SIGN_BIT ((uint64_t)1 << 63)
   #define XR_QNAN     ((uint64_t)0x7ffc000000000000)
   
-  /* 类型判断宏（预留） */
-  #define XR_IS_NUM(v)    (((v) & XR_QNAN) != XR_QNAN)
+  /* SMI (Small Integer)编码：使用LSB标记整数 */
+  #define XR_IS_SMI(v)      (((v) & 1) == 0)
+  #define XR_SMI_TO_INT(v)  ((xr_Integer)((int64_t)(v) >> 1))
+  #define XR_INT_TO_SMI(i)  ((XrValue)((uint64_t)((int64_t)(i) << 1)))
+  #define XR_SMI_MIN        (-(1LL << 47))
+  #define XR_SMI_MAX        ((1LL << 47) - 1)
+  
+  /* 类型判断宏 */
+  #define XR_IS_NUM(v)    (XR_IS_SMI(v) || (((v) & XR_QNAN) != XR_QNAN))
+  #define XR_IS_INT(v)    (XR_IS_SMI(v))
+  #define XR_IS_FLOAT(v)  (!XR_IS_SMI(v) && (((v) & XR_QNAN) != XR_QNAN))
   #define XR_IS_OBJ(v)    (((v) & (XR_QNAN | XR_SIGN_BIT)) == (XR_QNAN | XR_SIGN_BIT))
   #define XR_IS_NULL(v)   ((v) == XR_NULL_VAL)
-  #define XR_IS_BOOL(v)   (((v) & ~1) == XR_FALSE_VAL)
-  #define XR_IS_INT(v)    (XR_IS_NUM(v))  /* 暂时简化，第13阶段优化 */
-  #define XR_IS_FLOAT(v)  (XR_IS_NUM(v))
-  #define XR_IS_STRING(v) (XR_IS_OBJ(v))  /* 需要进一步检查对象类型 */
+  #define XR_IS_BOOL(v)   (((v) & ~1ULL) == XR_FALSE_VAL)
+  #define XR_IS_STRING(v) (XR_IS_OBJ(v) && ((XrObject*)XR_TO_OBJ(v))->type == XR_TSTRING)
+  #define XR_IS_FUNCTION(v) (XR_IS_OBJ(v) && ((XrObject*)XR_TO_OBJ(v))->type == XR_TFUNCTION)
+  #define XR_IS_ARRAY(v) (XR_IS_OBJ(v) && ((XrObject*)XR_TO_OBJ(v))->type == XR_TARRAY)
   
-  /* 值访问宏（预留） */
+  /* 值访问宏 */
   #define XR_TO_BOOL(v)   ((int)((v) == XR_TRUE_VAL))
-  #define XR_TO_INT(v)    ((xr_Integer)wrenDoubleFromBits(v))
+  #define XR_TO_INT(v)    (XR_SMI_TO_INT(v))
   #define XR_TO_FLOAT(v)  (wrenDoubleFromBits(v))
   #define XR_TO_OBJ(v)    ((void*)(uintptr_t)((v) & ~(XR_SIGN_BIT | XR_QNAN)))
   
@@ -89,8 +99,30 @@ typedef struct XrObject {
   #define XR_TRUE_VAL     ((XrValue)(uint64_t)(XR_QNAN | 3))
   
   /* 双精度浮点数编码/解码（第13阶段实现） */
-  static inline double wrenDoubleFromBits(uint64_t bits);
-  static inline uint64_t wrenDoubleToBits(double num);
+  /* 
+  ** Union用于在double和uint64_t之间进行类型双关转换
+  ** 这是标准的NaN Tagging技巧，被Wren, LuaJIT等广泛使用
+  */
+  typedef union {
+    uint64_t bits64;
+    double num;
+  } XrDoubleBits;
+  
+  static inline double wrenDoubleFromBits(uint64_t bits) {
+    XrDoubleBits data;
+    data.bits64 = bits;
+    return data.num;
+  }
+  
+  static inline uint64_t wrenDoubleToBits(double num) {
+    XrDoubleBits data;
+    data.num = num;
+    return data.bits64;
+  }
+  
+  /* 对象转值宏（对象指针 -> NaN Tagged Value） */
+  #define XR_OBJ_TO_VAL(obj) \
+    ((XrValue)(XR_SIGN_BIT | XR_QNAN | (uint64_t)(uintptr_t)(obj)))
 
 #else
 
@@ -170,6 +202,9 @@ bool xr_value_is_type(const XrValue *v, XrTypeInfo *expected);
 /* 基本类型名称（保留兼容） */
 const char* xr_typename(XrType type);
 
+/* 获取值的基本类型（新增 v0.13.4） */
+XrType xr_value_type(XrValue v);
+
 /* ========== 对象定义（在XrValue之后）========== */
 
 /*
@@ -216,6 +251,21 @@ XrFunction* xr_function_new(const char *name, char **parameters,
                             XrTypeInfo **param_types, int param_count,
                             XrTypeInfo *return_type, AstNode *body);
 void xr_function_free(XrFunction *func);
+
+/* 函数值创建（新增 v0.13.4）*/
+XrValue xr_function_value(XrFunction *func);
+
+/* 闭包值操作 */
+struct XrClosure;  /* 前向声明 */
+XrValue xr_value_from_closure(struct XrClosure *closure);
+bool xr_value_is_closure(XrValue v);
+struct XrClosure* xr_value_to_closure(XrValue v);
+
+/* C函数值操作（v0.14.1新增）*/
+struct XrCFunction;  /* 前向声明 */
+XrValue xr_value_from_cfunction(struct XrCFunction *cfunc);
+bool xr_value_is_cfunction(XrValue v);
+struct XrCFunction* xr_value_to_cfunction(XrValue v);
 
 /* 数组值操作 */
 struct XrArray;  /* 前向声明 */

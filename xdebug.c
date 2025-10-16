@@ -49,6 +49,26 @@ static int constant_instruction(const char *name, Proto *proto, int offset) {
 }
 
 /*
+** Proto索引指令（用于OP_CLOSURE）
+*/
+static int proto_instruction(const char *name, Proto *proto, int offset) {
+    Instruction inst = proto->code[offset];
+    uint8_t ra = GETARG_A(inst);
+    uint16_t pbx = GETARG_Bx(inst);
+    
+    printf("%-16s R[%d] Proto[%d]", name, ra, pbx);
+    
+    /* 打印函数名（如果有） */
+    if (pbx < proto->sizeprotos && proto->protos[pbx] != NULL && 
+        proto->protos[pbx]->name != NULL) {
+        printf(" ; \"%s\"", proto->protos[pbx]->name->chars);
+    }
+    printf("\n");
+    
+    return offset + 1;
+}
+
+/*
 ** ABC格式指令
 */
 static int abc_instruction(const char *name, Proto *proto, int offset) {
@@ -74,6 +94,18 @@ static int ab_instruction(const char *name, Proto *proto, int offset) {
 }
 
 /*
+** AB格式指令（B作为立即数）
+*/
+static int ab_imm_instruction(const char *name, Proto *proto, int offset) {
+    Instruction inst = proto->code[offset];
+    uint8_t ra = GETARG_A(inst);
+    uint8_t rb = GETARG_B(inst);
+    
+    printf("%-16s R[%d] %d\n", name, ra, rb);
+    return offset + 1;
+}
+
+/*
 ** 立即数指令（AsBx格式）
 */
 static int immediate_instruction(const char *name, Proto *proto, int offset) {
@@ -82,6 +114,19 @@ static int immediate_instruction(const char *name, Proto *proto, int offset) {
     int sbx = GETARG_sBx(inst);
     
     printf("%-16s R[%d] %d\n", name, ra, sbx);
+    return offset + 1;
+}
+
+/*
+** ABsC格式指令（B是寄存器，C是有符号立即数）
+*/
+static int ab_sc_instruction(const char *name, Proto *proto, int offset) {
+    Instruction inst = proto->code[offset];
+    uint8_t ra = GETARG_A(inst);
+    uint8_t rb = GETARG_B(inst);
+    int sc = GETARG_sC(inst);  /* 有符号C */
+    
+    printf("%-16s R[%d] R[%d] %d\n", name, ra, rb, sc);
     return offset + 1;
 }
 
@@ -236,11 +281,13 @@ int xr_disassemble_instruction(Proto *proto, int offset) {
         case OP_MOD:
             return abc_instruction(name, proto, offset);
         
+        /* 优化算术指令（立即数） */
         case OP_ADDI:
         case OP_SUBI:
         case OP_MULI:
-            return immediate_instruction(name, proto, offset);
+            return ab_sc_instruction(name, proto, offset);
         
+        /* 优化算术指令（常量） */
         case OP_ADDK:
         case OP_SUBK:
         case OP_MULK:
@@ -275,6 +322,7 @@ int xr_disassemble_instruction(Proto *proto, int offset) {
             return ab_instruction(name, proto, offset);
         
         case OP_CALL:
+        case OP_TAILCALL:
         case OP_RETURN:
             return abc_instruction(name, proto, offset);
         
@@ -288,12 +336,14 @@ int xr_disassemble_instruction(Proto *proto, int offset) {
         case OP_SETI:
         case OP_GETFIELD:
         case OP_SETFIELD:
-        case OP_SETLIST:
             return abc_instruction(name, proto, offset);
+        
+        case OP_SETLIST:
+            return ab_imm_instruction(name, proto, offset);
         
         /* 闭包 */
         case OP_CLOSURE:
-            return constant_instruction(name, proto, offset);
+            return proto_instruction(name, proto, offset);
         
         case OP_GETUPVAL:
         case OP_SETUPVAL:
@@ -319,6 +369,10 @@ int xr_disassemble_instruction(Proto *proto, int offset) {
         case OP_SETGLOBAL:
         case OP_DEFGLOBAL:
             return constant_instruction(name, proto, offset);
+        
+        /* 内置函数 */
+        case OP_PRINT:
+            return byte_instruction(name, proto, offset);
         
         default:
             printf("Unknown opcode %d\n", op);
@@ -359,8 +413,12 @@ void xr_disassemble_proto(Proto *proto, const char *name) {
     if (proto->sizeprotos > 0) {
         printf("\nNested functions:\n");
         for (int i = 0; i < proto->sizeprotos; i++) {
-            printf("\n");
-            xr_disassemble_proto(proto->protos[i], NULL);
+            if (proto->protos[i] != NULL) {
+                printf("\n");
+                xr_disassemble_proto(proto->protos[i], NULL);
+            } else {
+                printf("\n[Null proto at index %d]\n", i);
+            }
         }
     }
 }

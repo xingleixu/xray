@@ -47,14 +47,28 @@ XrValue xr_bool(int b) {
 ** 创建整数值（使用内置类型）
 */
 XrValue xr_int(xr_Integer i) {
+#if XR_NAN_TAGGING
+    /* SMI编码：47位有符号整数 */
+    if (i >= XR_SMI_MIN && i <= XR_SMI_MAX) {
+        return XR_INT_TO_SMI(i);
+    } else {
+        /* 超出SMI范围，转为浮点数 */
+        return wrenDoubleToBits((double)i);
+    }
+#else
     return xr_make_int(i, &xr_builtin_int_type);
+#endif
 }
 
 /*
 ** 创建浮点数值（使用内置类型）
 */
 XrValue xr_float(xr_Number n) {
+#if XR_NAN_TAGGING
+    return wrenDoubleToBits(n);
+#else
     return xr_make_float(n, &xr_builtin_float_type);
+#endif
 }
 
 /*
@@ -161,6 +175,32 @@ bool xr_value_is_type(const XrValue *v, XrTypeInfo *expected) {
     return xr_type_equals(actual, expected);
 }
 
+/*
+** 获取值的基本类型（新增 v0.13.4）
+** 支持NaN Tagging模式
+*/
+XrType xr_value_type(XrValue v) {
+#if XR_NAN_TAGGING
+    /* NaN Tagging模式 */
+    if (XR_IS_NULL(v)) {
+        return XR_TNULL;
+    } else if (XR_IS_BOOL(v)) {
+        return XR_TBOOL;
+    } else if (XR_IS_NUM(v)) {
+        /* 暂时返回TFLOAT，区分int/float需要额外标记 */
+        return XR_TFLOAT;
+    } else if (XR_IS_OBJ(v)) {
+        /* 从对象头部获取类型 */
+        XrObject *obj = (XrObject*)XR_TO_OBJ(v);
+        return obj->type;
+    }
+    return XR_TNULL;  /* 不应该到达这里 */
+#else
+    /* Tagged Union模式 */
+    return v.type;
+#endif
+}
+
 /* ========== 基本类型名称 ========== */
 
 /*
@@ -259,6 +299,24 @@ XrFunction* xr_function_new(const char *name, char **parameters,
 }
 
 /*
+** 创建函数值（新增 v0.13.4）
+** 将函数对象转换为XrValue
+*/
+XrValue xr_function_value(XrFunction *func) {
+#if XR_NAN_TAGGING
+    /* NaN Tagging模式：对象指针 */
+    return XR_OBJ_TO_VAL(func);
+#else
+    /* Tagged Union模式 */
+    XrValue v;
+    v.type = XR_TFUNCTION;
+    v.type_info = func ? func->header.type_info : NULL;
+    v.as.obj = func;
+    return v;
+#endif
+}
+
+/*
 ** 释放函数对象
 */
 void xr_function_free(XrFunction *func) {
@@ -301,6 +359,76 @@ void xr_function_free(XrFunction *func) {
     
     /* 释放函数对象本身 */
     free(func);
+}
+
+/* ========== 闭包值操作 ========== */
+
+/*
+** 创建闭包值
+*/
+XrValue xr_value_from_closure(struct XrClosure *closure) {
+#if XR_NAN_TAGGING
+    /* NaN Tagging模式：对象指针 */
+    return XR_OBJ_TO_VAL(closure);
+#else
+    /* Tagged Union模式 */
+    XrValue v;
+    v.type = XR_TFUNCTION;
+    v.type_info = NULL;
+    v.as.obj = closure;
+    return v;
+#endif
+}
+
+/*
+** 检查是否是闭包值
+*/
+bool xr_value_is_closure(XrValue v) {
+    return xr_isfunction(v);
+}
+
+/*
+** 获取闭包指针
+*/
+struct XrClosure* xr_value_to_closure(XrValue v) {
+    return (struct XrClosure*)xr_toobj(v);
+}
+
+/* ========== C函数值操作 ========== */
+
+/*
+** 创建C函数值
+*/
+XrValue xr_value_from_cfunction(struct XrCFunction *cfunc) {
+#if XR_NAN_TAGGING
+    /* NaN Tagging模式：对象指针 */
+    return XR_OBJ_TO_VAL(cfunc);
+#else
+    /* Tagged Union模式 */
+    XrValue v;
+    v.type = XR_TCFUNCTION;
+    v.type_info = NULL;
+    v.as.obj = cfunc;
+    return v;
+#endif
+}
+
+/*
+** 检查是否是C函数值
+*/
+bool xr_value_is_cfunction(XrValue v) {
+#if XR_NAN_TAGGING
+    return XR_IS_OBJ(v) && ((XrObject*)XR_TO_OBJ(v))->type == XR_TCFUNCTION;
+#else
+    return v.type == XR_TCFUNCTION;
+#endif
+}
+
+/*
+** 获取C函数指针
+*/
+struct XrCFunction* xr_value_to_cfunction(XrValue v) {
+    return (struct XrCFunction*)xr_toobj(v);
 }
 
 /* ========== 数组值操作========== */

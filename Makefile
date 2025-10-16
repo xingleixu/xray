@@ -26,9 +26,18 @@ TEST_CLASS_BASIC_TARGET = test/test_class_basic
 TEST_CLASS_INHERIT_TARGET = test/test_class_inherit
 TEST_BYTECODE_TARGET = test/test_bytecode
 TEST_COMPILER_TARGET = test/test_compiler
+TEST_CLOSURE_BC_TARGET = test/test_closure_bc
+TEST_CLOSURE_SIMPLE_TARGET = test/test_closure_simple
+TEST_PRINT_BC_TARGET = test/test_print_bc
+TEST_ARRAY_BC_TARGET = test/test_array_bc
+TEST_COMPREHENSIVE_BC_TARGET = test/test_comprehensive_bc
+TEST_ARRAY_SET_BC_TARGET = test/test_array_set_bc
+TEST_CLOSURE_ADV_BC_TARGET = test/test_closure_advanced_bc
+TEST_COMPREHENSIVE_FEAT_TARGET = test/test_comprehensive_features
+TEST_EDGE_CASES_TARGET = test/test_edge_cases
 
-# 源文件
-CORE_SRCS = xvalue.c xtype.c xlex.c xstate.c xast.c xparse.c xparse_type.c xparse_oop.c xeval.c xeval_oop.c xscope.c xmem.c fn_proto.c upvalue.c closure.c xarray.c xstring.c xhash.c xmap.c xhashmap.c xclass.c xinstance.c xmethod.c xchunk.c xdebug.c xvm.c xcompiler.c
+# 源文件（AST解释器已移除，高阶函数待字节码重新实现）
+CORE_SRCS = xvalue.c xtype.c xlex.c xstate.c xast.c xparse.c xparse_type.c xparse_oop.c xscope.c xmem.c fn_proto.c upvalue.c closure.c xarray.c xstring.c xhash.c xmap.c xhashmap.c xclass.c xinstance.c xmethod.c xchunk.c xdebug.c xvm.c xcompiler.c
 MAIN_SRC = main.c
 TEST_SRC = test/test_lexer.c
 TEST_FOR_SRC = test/test_for_loop.c
@@ -48,6 +57,15 @@ TEST_CLASS_BASIC_SRC = test/test_class_basic.c
 TEST_CLASS_INHERIT_SRC = test/test_class_inherit.c
 TEST_BYTECODE_SRC = test/test_bytecode.c
 TEST_COMPILER_SRC = test/test_compiler.c
+TEST_CLOSURE_BC_SRC = test/test_closure_bc.c
+TEST_CLOSURE_SIMPLE_SRC = test/test_closure_simple.c
+TEST_PRINT_BC_SRC = test/test_print_bc.c
+TEST_ARRAY_BC_SRC = test/test_array_bc.c
+TEST_COMPREHENSIVE_BC_SRC = test/test_comprehensive_bc.c
+TEST_ARRAY_SET_BC_SRC = test/test_array_set_bc.c
+TEST_CLOSURE_ADV_BC_SRC = test/test_closure_advanced_bc.c
+TEST_COMPREHENSIVE_FEAT_SRC = test/test_comprehensive_features.c
+TEST_EDGE_CASES_SRC = test/test_edge_cases.c
 
 # 对象文件
 CORE_OBJS = $(CORE_SRCS:.c=.o)
@@ -70,6 +88,15 @@ TEST_CLASS_BASIC_OBJ = $(TEST_CLASS_BASIC_SRC:.c=.o)
 TEST_CLASS_INHERIT_OBJ = $(TEST_CLASS_INHERIT_SRC:.c=.o)
 TEST_BYTECODE_OBJ = $(TEST_BYTECODE_SRC:.c=.o)
 TEST_COMPILER_OBJ = $(TEST_COMPILER_SRC:.c=.o)
+TEST_CLOSURE_BC_OBJ = $(TEST_CLOSURE_BC_SRC:.c=.o)
+TEST_CLOSURE_SIMPLE_OBJ = $(TEST_CLOSURE_SIMPLE_SRC:.c=.o)
+TEST_PRINT_BC_OBJ = $(TEST_PRINT_BC_SRC:.c=.o)
+TEST_ARRAY_BC_OBJ = $(TEST_ARRAY_BC_SRC:.c=.o)
+TEST_COMPREHENSIVE_BC_OBJ = $(TEST_COMPREHENSIVE_BC_SRC:.c=.o)
+TEST_ARRAY_SET_BC_OBJ = $(TEST_ARRAY_SET_BC_SRC:.c=.o)
+TEST_CLOSURE_ADV_BC_OBJ = $(TEST_CLOSURE_ADV_BC_SRC:.c=.o)
+TEST_COMPREHENSIVE_FEAT_OBJ = $(TEST_COMPREHENSIVE_FEAT_SRC:.c=.o)
+TEST_EDGE_CASES_OBJ = $(TEST_EDGE_CASES_SRC:.c=.o)
 
 # 默认目标
 all: $(TARGET)
@@ -200,6 +227,42 @@ $(TEST_BYTECODE_TARGET): $(CORE_OBJS) $(TEST_BYTECODE_OBJ)
 $(TEST_COMPILER_TARGET): $(CORE_OBJS) $(TEST_COMPILER_OBJ)
 	$(CC) $(LDFLAGS) -o $@ $^
 	@echo "编译完成: $(TEST_COMPILER_TARGET)"
+
+$(TEST_CLOSURE_BC_TARGET): $(CORE_OBJS) $(TEST_CLOSURE_BC_OBJ)
+	$(CC) $(LDFLAGS) -o $@ $^
+	@echo "编译完成: $(TEST_CLOSURE_BC_TARGET)"
+
+$(TEST_CLOSURE_SIMPLE_TARGET): $(CORE_OBJS) $(TEST_CLOSURE_SIMPLE_OBJ)
+	$(CC) $(LDFLAGS) -o $@ $^
+	@echo "编译完成: $(TEST_CLOSURE_SIMPLE_TARGET)"
+
+$(TEST_PRINT_BC_TARGET): $(CORE_OBJS) $(TEST_PRINT_BC_OBJ)
+	$(CC) $(LDFLAGS) -o $@ $^
+	@echo "编译完成: $(TEST_PRINT_BC_TARGET)"
+
+$(TEST_ARRAY_BC_TARGET): $(CORE_OBJS) $(TEST_ARRAY_BC_OBJ)
+	$(CC) $(LDFLAGS) -o $@ $^
+	@echo "编译完成: $(TEST_ARRAY_BC_TARGET)"
+
+$(TEST_COMPREHENSIVE_BC_TARGET): $(CORE_OBJS) $(TEST_COMPREHENSIVE_BC_OBJ)
+	$(CC) $(LDFLAGS) -o $@ $^
+	@echo "编译完成: $(TEST_COMPREHENSIVE_BC_TARGET)"
+
+$(TEST_ARRAY_SET_BC_TARGET): $(CORE_OBJS) $(TEST_ARRAY_SET_BC_OBJ)
+	$(CC) $(LDFLAGS) -o $@ $^
+	@echo "编译完成: $(TEST_ARRAY_SET_BC_TARGET)"
+
+$(TEST_CLOSURE_ADV_BC_TARGET): $(CORE_OBJS) $(TEST_CLOSURE_ADV_BC_OBJ)
+	$(CC) $(LDFLAGS) -o $@ $^
+	@echo "编译完成: $(TEST_CLOSURE_ADV_BC_TARGET)"
+
+$(TEST_COMPREHENSIVE_FEAT_TARGET): $(CORE_OBJS) $(TEST_COMPREHENSIVE_FEAT_OBJ)
+	$(CC) $(LDFLAGS) -o $@ $^
+	@echo "编译完成: $(TEST_COMPREHENSIVE_FEAT_TARGET)"
+
+$(TEST_EDGE_CASES_TARGET): $(CORE_OBJS) $(TEST_EDGE_CASES_OBJ)
+	$(CC) $(LDFLAGS) -o $@ $^
+	@echo "编译完成: $(TEST_EDGE_CASES_TARGET)"
 
 # 编译规则
 %.o: %.c

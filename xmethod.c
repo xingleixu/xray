@@ -119,7 +119,9 @@ XrValue xr_method_call(XrayState *X, XrMethod *method,
     }
     
     /* 调用底层函数 */
-    XrValue result = xr_eval_call_function(method->func, full_args, argc + 1, symbols);
+    /* TODO: 使用字节码VM重新实现 */
+    fprintf(stderr, "方法调用: 暂未实现（等待字节码VM支持）\n");
+    XrValue result = xr_null();
     
     xmem_free(full_args);
     return result;
@@ -136,7 +138,10 @@ XrValue xr_method_call_static(XrayState *X, XrMethod *method,
     assert(method->is_static && "Method must be static");
     
     /* 直接调用底层函数，无this绑定 */
-    return xr_eval_call_function(method->func, args, argc, symbols);
+    /* TODO: 使用字节码VM重新实现 */
+    (void)args; (void)argc; (void)symbols;
+    fprintf(stderr, "静态方法调用: 暂未实现（等待字节码VM支持）\n");
+    return xr_null();
 }
 
 /* ========== 辅助函数实现 ========== */

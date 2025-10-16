@@ -6,28 +6,31 @@
 #include <stdio.h>
 #include <string.h>
 
-/* 前向声明（高阶方法需要） */
-XrValue xr_eval_call_function(XrFunction *func, XrValue *args, int arg_count, struct XSymbolTable *symbols);
-int xr_is_truthy(XrValue value);
+/* 前向声明（高阶方法需要） - 使用字节码VM */
+XrValue xr_bc_call_closure(struct XrClosure *closure, XrValue *args, int nargs);
+bool xr_bc_is_truthy(XrValue value);
 
 /* 简单的值比较函数（用于数组的 indexOf） */
 static bool xr_value_equal(XrValue a, XrValue b) {
-    if (a.type != b.type) return false;
+    XrType type_a = xr_value_type(a);
+    XrType type_b = xr_value_type(b);
     
-    switch (a.type) {
+    if (type_a != type_b) return false;
+    
+    switch (type_a) {
         case XR_TNULL:
             return true;
         case XR_TBOOL:
-            return a.as.b == b.as.b;
+            return xr_tobool(a) == xr_tobool(b);
         case XR_TINT:
-            return a.as.i == b.as.i;
+            return xr_toint(a) == xr_toint(b);
         case XR_TFLOAT:
-            return a.as.n == b.as.n;
+            return xr_tofloat(a) == xr_tofloat(b);
         case XR_TSTRING:
             // 简化：指针比较（实际应该比较字符串内容）
-            return a.as.obj == b.as.obj;
+            return xr_toobj(a) == xr_toobj(b);
         default:
-            return a.as.obj == b.as.obj;
+            return xr_toobj(a) == xr_toobj(b);
     }
 }
 
@@ -93,9 +96,23 @@ XrValue xr_array_get(XrArray *arr, int index) {
 }
 
 void xr_array_set(XrArray *arr, int index, XrValue value) {
-    // 边界检查
-    if (index < 0 || index >= arr->count) {
+    // 负索引检查
+    if (index < 0) {
         return;
+    }
+    
+    // 如果索引超出当前count，需要扩展数组
+    if (index >= arr->count) {
+        // 确保容量足够
+        xr_array_ensure_capacity(arr, index + 1);
+        
+        // 填充中间的空位为null
+        for (int i = arr->count; i < index; i++) {
+            arr->elements[i] = xr_null();
+        }
+        
+        // 更新count
+        arr->count = index + 1;
     }
     
     arr->elements[index] = value;
@@ -186,31 +203,46 @@ bool xr_array_is_empty(XrArray *arr) {
 }
 
 /* ====== 高阶方法 ====== */
+/* 
+** 使用字节码VM重新实现（v0.15.0）
+** 不再依赖AST解释器
+*/
 
 void xr_array_foreach(XrArray *arr, XrFunction *callback, struct XSymbolTable *symbols) {
-    /* 遍历每个元素，调用回调 */
+    (void)symbols;  /* 不再需要symbols */
+    
+    if (!arr || !callback) return;
+    
+    /* 将XrFunction转换为XrClosure（暂时使用简单方案）*/
+    struct XrClosure *closure = (struct XrClosure *)callback;  /* TODO: 更安全的转换 */
+    
+    /* 遍历每个元素 */
     for (size_t i = 0; i < arr->count; i++) {
         XrValue args[2];
         args[0] = arr->elements[i];
-        args[1] = xr_int(i);
+        args[1] = xr_int((xr_Integer)i);
         
-        /* 调用回调函数 */
-        xr_eval_call_function(callback, args, 2, symbols);
+        /* 使用字节码VM调用 */
+        xr_bc_call_closure(closure, args, 2);
     }
 }
 
 XrArray* xr_array_map(XrArray *arr, XrFunction *callback, struct XSymbolTable *symbols) {
-    /* 创建新数组 */
+    (void)symbols;
+    
+    if (!arr || !callback) return xr_array_new();
+    
+    struct XrClosure *closure = (struct XrClosure *)callback;
     XrArray *result = xr_array_with_capacity(arr->count);
     
     /* 映射每个元素 */
     for (size_t i = 0; i < arr->count; i++) {
         XrValue args[2];
         args[0] = arr->elements[i];
-        args[1] = xr_int(i);
+        args[1] = xr_int((xr_Integer)i);
         
-        /* 调用回调函数并获取返回值 */
-        XrValue mapped = xr_eval_call_function(callback, args, 2, symbols);
+        /* 调用并收集结果 */
+        XrValue mapped = xr_bc_call_closure(closure, args, 2);
         xr_array_push(result, mapped);
     }
     
@@ -218,7 +250,11 @@ XrArray* xr_array_map(XrArray *arr, XrFunction *callback, struct XSymbolTable *s
 }
 
 XrArray* xr_array_filter(XrArray *arr, XrFunction *callback, struct XSymbolTable *symbols) {
-    /* 创建新数组 */
+    (void)symbols;
+    
+    if (!arr || !callback) return xr_array_new();
+    
+    struct XrClosure *closure = (struct XrClosure *)callback;
     XrArray *result = xr_array_with_capacity(arr->count / 2);
     
     /* 过滤每个元素 */
@@ -226,11 +262,11 @@ XrArray* xr_array_filter(XrArray *arr, XrFunction *callback, struct XSymbolTable
         XrValue args[1];
         args[0] = arr->elements[i];
         
-        /* 调用回调函数 */
-        XrValue test_result = xr_eval_call_function(callback, args, 1, symbols);
+        /* 调用回调判断 */
+        XrValue test_result = xr_bc_call_closure(closure, args, 1);
         
-        /* 如果返回 true，保留该元素 */
-        if (xr_is_truthy(test_result)) {
+        /* 如果为真，保留元素 */
+        if (xr_bc_is_truthy(test_result)) {
             xr_array_push(result, arr->elements[i]);
         }
     }
@@ -239,6 +275,11 @@ XrArray* xr_array_filter(XrArray *arr, XrFunction *callback, struct XSymbolTable
 }
 
 XrValue xr_array_reduce(XrArray *arr, XrFunction *callback, XrValue initial, struct XSymbolTable *symbols) {
+    (void)symbols;
+    
+    if (!arr || !callback) return initial;
+    
+    struct XrClosure *closure = (struct XrClosure *)callback;
     XrValue accumulator = initial;
     
     /* 归约每个元素 */
@@ -247,8 +288,8 @@ XrValue xr_array_reduce(XrArray *arr, XrFunction *callback, XrValue initial, str
         args[0] = accumulator;
         args[1] = arr->elements[i];
         
-        /* 调用回调函数，更新累积值 */
-        accumulator = xr_eval_call_function(callback, args, 2, symbols);
+        /* 调用并更新累积值 */
+        accumulator = xr_bc_call_closure(closure, args, 2);
     }
     
     return accumulator;

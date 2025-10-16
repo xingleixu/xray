@@ -19,6 +19,18 @@
 #define FRAMES_MAX 64               /* 最大调用帧数量 */
 #define STACK_MAX (FRAMES_MAX * 256) /* 最大栈大小（寄存器数量） */
 
+/* ========== C函数对象 ========== */
+
+/* C函数类型（v0.14.1新增）*/
+typedef XrValue (*XrCFunctionPtr)(struct VM *vm, XrValue *args, int nargs);
+
+/* C函数对象 */
+typedef struct {
+    XrObject header;            /* GC对象头 */
+    XrCFunctionPtr func;        /* C函数指针 */
+    const char *name;           /* 函数名（调试用） */
+} XrCFunction;
+
 /* ========== 闭包对象 ========== */
 
 /* Upvalue对象（开放和关闭状态） */
@@ -61,8 +73,10 @@ typedef struct {
     /* Upvalue链表 */
     XrUpvalue *open_upvalues;   /* 开放的upvalue链表 */
     
-    /* 全局变量 */
-    XrHashMap *globals;         /* 全局变量表 */
+    /* 全局变量（Wren风格优化：固定索引数组） */
+    XrValue globals_array[256]; /* 全局变量数组 */
+    int global_count;           /* 全局变量数量 */
+    XrHashMap *globals;         /* 全局变量表（保留用于调试/兼容） */
     
     /* 字符串驻留表 */
     XrHashMap *strings;         /* 字符串驻留表 */
@@ -114,6 +128,18 @@ InterpretResult xr_bc_interpret(const char *source);
 */
 InterpretResult xr_bc_interpret_proto(Proto *proto);
 
+/* ========== C函数API ========== */
+
+/*
+** 创建C函数对象
+*/
+XrCFunction *xr_bc_cfunction_new(XrCFunctionPtr func, const char *name);
+
+/*
+** 释放C函数对象
+*/
+void xr_bc_cfunction_free(XrCFunction *cfunc);
+
 /* ========== 闭包API ========== */
 
 /*
@@ -125,6 +151,15 @@ XrClosure *xr_bc_closure_new(Proto *proto);
 ** 释放闭包对象
 */
 void xr_bc_closure_free(XrClosure *closure);
+
+/*
+** 从C代码调用Xray闭包（用于高阶函数等）
+** @param closure 要调用的闭包
+** @param args 参数数组
+** @param nargs 参数数量
+** @return 返回值
+*/
+XrValue xr_bc_call_closure(XrClosure *closure, XrValue *args, int nargs);
 
 /* ========== Upvalue API ========== */
 
@@ -149,6 +184,13 @@ void xr_bc_close_upvalues(XrValue *last);
 ** 报告运行时错误
 */
 void xr_bc_runtime_error(const char *format, ...);
+
+/* ========== 辅助函数 ========== */
+
+/*
+** 检查值是否为真（用于高阶函数等）
+*/
+bool xr_bc_is_truthy(XrValue value);
 
 #endif /* xvm_h */
 
