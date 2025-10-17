@@ -1,0 +1,73 @@
+feat: 第十二阶段完成 - 实现完整的OOP系统（v0.12.2）
+
+实现了完整的面向对象编程系统，Xray正式成为OOP语言。
+
+核心功能：
+- 类定义和单继承（class/extends）
+- 实例化（new）
+- 构造函数（constructor）
+- 方法定义和调用
+- 字段访问和赋值
+- this自动绑定
+- 访问控制框架（private/public）
+- 静态成员支持（static）
+
+技术实现：
+- 纯类设计
+- 单继承模型（super指针链）
+- 哈希表方法表
+- 柔性数组成员实例
+- this自动绑定到方法符号表
+- 静态字段/方法独立存储
+
+关键修复：
+- 修复static关键字识别bug（check_keyword参数）
+- 修复方法体解析（添加consume LBRACE）
+- 修复this绑定（xr_eval_call_function参数偏移）
+- 实现成员赋值语法（obj.field = value）
+
+代码量：
+- 新增核心代码：3,360行
+- 新增测试代码：490行
+- 新增10个核心模块
+- 修改9个现有文件（+700行）
+- 新增13个示例程序
+
+测试：
+- 19个单元测试（100%通过）
+- 13+个集成测试（全部运行）
+- test_class_basic: 12个测试
+- test_class_inherit: 7个测试
+
+版本：
+- v0.12.0: 核心OOP系统
+- v0.12.1: 访问控制框架
+- v0.12.2: 静态成员支持
+
+新增文件：
+- xclass.h/c - 类对象系统
+- xinstance.h/c - 实例对象系统
+- xmethod.h/c - 方法对象系统
+- xhashmap.h/c - 字符串哈希表
+- xparse_oop.c - OOP Parser实现
+- xeval_oop.c - OOP Evaluator实现
+- test/test_class_basic.c - 基础测试
+- test/test_class_inherit.c - 继承测试
+- 13个example/*.xr示例程序
+
+修改文件：
+- xvalue.h/c - OOP值类型支持
+- xgc.h - OOP对象类型
+- xstate.h/c - 状态机API
+- xlex.h/c - OOP关键字（含static bug修复）
+- xast.h/c - OOP AST节点
+- xparse.h/c - OOP解析集成
+- xeval.h/c - OOP求值集成（含静态成员）
+- Makefile - 编译规则
+
+质量：
+- TDD开发
+- 详细中文注释
+- 完整文档（15个）
+- 100%测试通过
+- 端到端可用

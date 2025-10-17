@@ -7,16 +7,23 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "xray.h"
+#include "xstate.h"
 #include "xparse.h"
 #include "xcompiler.h"
+#include "xcompiler_context.h"
 #include "xvm.h"
 #include "xdebug.h"
+#include "xast.h"
+
+/* 版本信息 */
+#define XRAY_VERSION        "Xray 0.17.0 (Bytecode VM + CALLSELF Optimization)"
+#define XRAY_COPYRIGHT      "Copyright (C) 2025 Xray Team"
 
 /* 打印版本信息 */
 static void print_version(void) {
     printf("%s\n", XRAY_VERSION);
     printf("%s\n", XRAY_COPYRIGHT);
+    printf("Architecture: Bytecode VM (Register-based)\n");
     printf("Value Mode: ");
 #if XR_NAN_TAGGING
     printf("NaN Tagging (8 bytes)\n");
@@ -90,7 +97,15 @@ static int run(XrayState *X, const char *source, int dump_ast, int dump_bc) {
     }
     
     /* 3. 编译到字节码 */
-    Proto *proto = xr_compile(ast);
+    /* 创建编译器上下文 */
+
+    CompilerContext *ctx = xr_compiler_context_new();
+
+    Proto *proto = xr_compile(ctx, ast);
+
+    /* 释放编译器上下文 */
+
+    xr_compiler_context_free(ctx);
     if (proto == NULL) {
         fprintf(stderr, "编译失败\n");
         xr_ast_free(X, ast);
@@ -105,9 +120,10 @@ static int run(XrayState *X, const char *source, int dump_ast, int dump_bc) {
     }
     
     /* 5. 在字节码VM上执行 */
-    xr_bc_vm_init();
-    InterpretResult result = xr_bc_interpret_proto(proto);
-    xr_bc_vm_free();
+    VM vm;
+    xr_bc_vm_init(&vm);
+    InterpretResult result = xr_bc_interpret_proto(&vm, proto);
+    xr_bc_vm_free(&vm);
     
     int status = (result == INTERPRET_OK) ? 0 : 1;
     
@@ -137,7 +153,7 @@ int main(int argc, char *argv[]) {
     int dump_bc = 0;
     
     /* 创建 Xray 状态 */
-    X = xray_newstate();
+    X = xr_state_new();
     if (X == NULL) {
         fprintf(stderr, "无法创建 Xray 状态\n");
         return 1;
@@ -206,7 +222,7 @@ int main(int argc, char *argv[]) {
     }
     
     /* 清理 */
-    xray_close(X);
+    xr_state_free(X);
     
     return status;
 }
