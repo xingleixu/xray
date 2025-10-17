@@ -68,6 +68,7 @@ typedef enum {
     TK_PUBLIC,          /* public（v0.12.0新增）*/
     TK_GET,             /* get（v0.12.0新增）*/
     TK_SET,             /* set（v0.12.0新增）*/
+    TK_OPERATOR,        /* operator（v0.19.0新增）*/
     
     /* 类型关键字（新增） */
     TK_VOID,            /* void */

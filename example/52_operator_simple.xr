@@ -1,0 +1,32 @@
+// v0.19.0 测试：运算符重载基础
+// 第一个运算符重载示例
+
+class Number {
+    value: int  // ⭐ 字段需要预先声明
+    
+    constructor(v: int) {
+        this.value = v
+    }
+    
+    operator +(other: Number): Number {
+        return new Number(this.value + other.value)
+    }
+}
+
+print("=== 测试运算符重载 ===")
+let a = new Number(10)
+print("a.value = ")
+print(a.value)
+
+let b = new Number(20)
+print("b.value = ")
+print(b.value)
+
+print("计算 a + b...")
+let c = a + b
+print("c.value = ")
+print(c.value)  // 期望输出：30
+
+print("=== 运算符重载成功！===")
+
+

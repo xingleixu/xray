@@ -192,6 +192,7 @@ static TokenType identifier_type(Scanner *scanner) {
                 }
             }
             break;
+        case 'o': return check_keyword(scanner, 1, 7, "perator", TK_OPERATOR);  /* operator（v0.19.0）*/
         case 'p':
             if (scanner->current - scanner->start > 1) {
                 switch (scanner->start[1]) {

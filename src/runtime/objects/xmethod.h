@@ -13,6 +13,9 @@
 #include "xscope.h"  /* 需要XSymbolTable完整定义 */
 #include <stdbool.h>
 
+/* 前向声明运算符类型（v0.19.0）*/
+#include "xast.h"  /* 需要 OperatorType */
+
 /*
 ** 方法对象
 ** 
@@ -21,11 +24,12 @@
 ** 2. 实例方法：第一个参数自动绑定this
 ** 3. 静态方法：无this绑定
 ** 4. Getter/Setter：特殊标记，语法糖支持
+** 5. v0.19.0：支持运算符重载
 */
 typedef struct XrMethod {
     XrObject header;           /* GC头部 */
     
-    char *name;                /* 方法名："greet" */
+    char *name;                /* 方法名："greet" 或运算符符号："+" */
     XrFunction *func;          /* 底层函数对象 */
     
     /* 方法属性 */
@@ -36,6 +40,10 @@ typedef struct XrMethod {
     /* Getter/Setter标记（Day 17-19实现）*/
     bool is_getter;            /* get propertyName() { ... } */
     bool is_setter;            /* set propertyName(value) { ... } */
+    
+    /* v0.19.0新增：运算符重载相关 */
+    bool is_operator;          /* 是否为运算符重载方法 */
+    OperatorType op_type;      /* 运算符类型 */
 } XrMethod;
 
 /* ========== 方法对象操作 ========== */
@@ -86,6 +94,14 @@ void xr_method_mark_getter(XrMethod *method);
 ** @param method    方法对象
 */
 void xr_method_mark_setter(XrMethod *method);
+
+/*
+** 设置方法为运算符重载（v0.19.0新增）
+** 
+** @param method    方法对象
+** @param op_type   运算符类型
+*/
+void xr_method_mark_operator(XrMethod *method, OperatorType op_type);
 
 /*
 ** 调用方法（绑定this）

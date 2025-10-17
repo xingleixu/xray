@@ -161,12 +161,39 @@ static int jump_instruction(const char *name, int sign, Proto *proto, int offset
 ** 打印常量值
 */
 void xr_print_value(XrValue value) {
+    
 #if XR_NAN_TAGGING
     /* NaN Tagging模式 */
     if (XR_IS_NULL(value)) {
         printf("null");
     } else if (XR_IS_BOOL(value)) {
         printf(XR_TO_BOOL(value) ? "true" : "false");
+    } else if (XR_IS_OBJ(value)) {
+        /* 对象类型 - 必须在INT/FLOAT之前检查！*/
+        XrObject *obj = (XrObject*)xr_toobj(value);
+        if (obj == NULL) {
+            printf("null");
+        } else {
+            switch (obj->type) {
+                case XR_TSTRING: {
+                    XrString *str = (XrString*)obj;
+                    printf("%s", str->chars);  // 不带引号
+                    break;
+                }
+                case XR_TFUNCTION:
+                    printf("<function>");
+                    break;
+                case XR_TARRAY:
+                    printf("<array>");
+                    break;
+                case XR_TINSTANCE:
+                    printf("<instance>");
+                    break;
+                default:
+                    printf("<object>");
+                    break;
+            }
+        }
     } else if (XR_IS_INT(value)) {
         /* 整数：使用xr_toint获取值 */
         printf("%lld", (long long)xr_toint(value));
@@ -177,12 +204,13 @@ void xr_print_value(XrValue value) {
         /* 对象类型 */
         XrObject *obj = (XrObject*)xr_toobj(value);
         if (obj == NULL) {
-            printf("null");
+            printf("[OBJ_NULL]null");
         } else {
+            printf("[OBJ_TYPE=%d]", obj->type);
             switch (obj->type) {
                 case XR_TSTRING: {
                     XrString *str = (XrString*)obj;
-                    printf("%s", str->chars);
+                    printf("%s", str->chars);  // 去掉引号
                     break;
                 }
                 case XR_TFUNCTION:
@@ -192,15 +220,19 @@ void xr_print_value(XrValue value) {
                     printf("<array>");
                     break;
                 default:
-                    printf("<object>");
+                    printf("<unknown obj>");
                     break;
             }
         }
     } else {
-        printf("<?>");
+        printf("[UNKNOWN_VALUE: %llu]", (unsigned long long)value);
     }
 #else
     /* Tagged Union模式 */
+    
+    /* 调试输出 - 临时启用 */
+    printf("[DEBUG_TYPE=%d] ", value.type);
+    
     switch (value.type) {
         case XR_TNULL:
             printf("null");
@@ -215,11 +247,14 @@ void xr_print_value(XrValue value) {
             printf("%.14g", value.as.n);
             break;
         case XR_TSTRING: {
+            printf("[IN_STRING_CASE] ");
             XrString *str = (XrString *)value.as.obj;
             if (str != NULL) {
-                printf("\"%s\"", str->chars);
+                printf("[STR_PTR=%p,CHARS=%s] ", (void*)str, str->chars);
+                /* 移除引号 - print应该直接输出字符串内容 */
+                printf("%s", str->chars);
             } else {
-                printf("null");
+                printf("[STR_NULL] null");
             }
             break;
         }
@@ -395,6 +430,9 @@ int xr_disassemble_instruction(Proto *proto, int offset) {
         /* OOP */
         case OP_CLASS:
             return byte_instruction(name, proto, offset);
+        
+        case OP_ADDFIELD:
+            return abc_instruction(name, proto, offset);
         
         case OP_INHERIT:
         case OP_GETPROP:

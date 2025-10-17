@@ -192,6 +192,12 @@ AstNode *xr_parse_method_declaration(Parser *parser, const char *name,
                                      bool is_private, bool is_static);
 
 /*
+** 解析运算符方法声明（v0.19.0新增）
+** operator +(other: Type): Type { ... }
+*/
+AstNode *xr_parse_operator_method(Parser *parser, bool is_private, bool is_static);
+
+/*
 ** 解析new表达式（前缀）
 ** new Dog("Rex")
 */

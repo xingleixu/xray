@@ -2,6 +2,7 @@
 ** xvm.c
 ** Xray 寄存器虚拟机实现
 ** v0.18.0 - 高级优化（快速路径、类型特化、循环优化）
+** v0.19.0 - OOP支持（类、方法、运算符重载）
 */
 
 #include "xvm.h"
@@ -9,6 +10,10 @@
 #include "xmem.h"
 #include "xstring.h"
 #include "xarray.h"
+#include "xclass.h"      /* v0.19.0：类对象 */
+#include "xinstance.h"   /* v0.19.0：实例对象 */
+#include "xmethod.h"     /* v0.19.0：方法对象 */
+#include "xsymbol.h"     /* v0.20.0：Symbol系统 */
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
@@ -456,12 +461,65 @@ startfunc:
                 int b = GETARG_B(inst);
                 int c = GETARG_C(inst);
                 
+                /* v0.19.0：检查是否为类实例，支持运算符重载 */
+                if (xr_value_is_instance(R(b))) {
+                    /* v0.20.0: 左操作数是类实例，通过symbol查找operator+ */
+                    XrInstance *inst_obj = xr_value_to_instance(R(b));
+                    XrMethod *op_method = xr_class_lookup_method_by_symbol(inst_obj->klass, SYMBOL_OP_ADD);
+                    
+                    if (op_method != NULL && op_method->func != NULL) {
+                        /* 找到运算符方法，通过字节码调用（类似OP_INVOKE）*/
+                        Proto *proto = (Proto*)op_method->func;
+                        
+                        /* 检查参数数量（运算符方法：this + other）*/
+                        if (1 + 1 != proto->numparams) {  /* this + other = 2个参数 */
+                            xr_bc_runtime_error(vm, "Operator + expects 1 argument");
+                            return INTERPRET_RUNTIME_ERROR;
+                        }
+                        
+                        /* 检查栈空间 */
+                        if (vm->frame_count >= FRAMES_MAX) {
+                            xr_bc_runtime_error(vm, "Stack overflow");
+                            return INTERPRET_RUNTIME_ERROR;
+                        }
+                        
+                        /* 创建闭包对象 */
+                        XrClosure *closure = (XrClosure*)gc_alloc(sizeof(XrClosure), OBJ_CLOSURE);
+                        closure->header.type = XR_TFUNCTION;
+                        closure->header.next = vm->objects;
+                        closure->header.marked = false;
+                        closure->proto = proto;
+                        closure->upvalue_count = 0;
+                        closure->upvalues = NULL;
+                        vm->objects = (XrObject*)closure;
+                        
+                        /* 设置参数：R[a+1] = this, R[a+2] = other */
+                        R(a + 1) = R(b);  /* this */
+                        R(a + 2) = R(c);  /* other */
+                        
+                        /* 创建新的调用帧 */
+                        BcCallFrame *new_frame = &vm->frames[vm->frame_count++];
+                        new_frame->closure = closure;
+                        new_frame->pc = proto->code;
+                        new_frame->base = frame->base + a + 1;  /* 参数从R[a+1]开始 */
+                        
+                        /* 跳转到新函数执行 */
+                        frame = new_frame;
+                        goto startfunc;
+                    }
+                    /* 没有找到运算符方法，继续尝试内置运算 */
+                }
+                
+                /* 内置类型加法 */
                 if (xr_isint(R(b)) && xr_isint(R(c))) {
                     R(a) = xr_int(xr_toint(R(b)) + xr_toint(R(c)));
-                } else {
+                } else if ((xr_isint(R(b)) || xr_isfloat(R(b))) && (xr_isint(R(c)) || xr_isfloat(R(c)))) {
                     double nb = xr_isint(R(b)) ? (double)xr_toint(R(b)) : xr_tofloat(R(b));
                     double nc = xr_isint(R(c)) ? (double)xr_toint(R(c)) : xr_tofloat(R(c));
                     R(a) = xr_float(nb + nc);
+                } else {
+                    xr_bc_runtime_error(vm, "类型错误：加法操作数必须是数字或定义了operator+的类实例");
+                    return INTERPRET_RUNTIME_ERROR;
                 }
                 break;
             }
@@ -1289,6 +1347,330 @@ startfunc:
                 ** 避免break的循环开销
                 */
                 goto startfunc;
+            }
+            
+            /* === OOP指令（v0.19.0新增）=== */
+            
+            case OP_CLASS: {
+                /* R[A] = new Class(name=K[Bx]) */
+                TRACE_EXECUTION();
+                int a = GETARG_A(inst);
+                int bx = GETARG_Bx(inst);
+                XrValue name_val = K(bx);
+                
+                /* 创建类对象 */
+                if (!xr_isstring(name_val)) {
+                    xr_bc_runtime_error(vm, "Class name must be a string");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                
+                XrString *class_name = xr_tostring(name_val);
+                XrClass *cls = xr_class_new(NULL, class_name->chars, NULL);
+                R(a) = xr_value_from_class(cls);
+                break;
+            }
+            
+            case OP_ADDFIELD: {
+                /* R[A].add_field(K[B], K[C]) - 添加字段定义 */
+                TRACE_EXECUTION();
+                int a = GETARG_A(inst);
+                int b = GETARG_B(inst);
+                int c = GETARG_C(inst);
+                
+                XrValue class_val = R(a);
+                XrValue field_name_val = K(b);
+                
+                if (!xr_value_is_class(class_val)) {
+                    xr_bc_runtime_error(vm, "OP_ADDFIELD: not a class");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                
+                if (!xr_isstring(field_name_val)) {
+                    xr_bc_runtime_error(vm, "Field name must be a string");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                
+                XrClass *cls = xr_value_to_class(class_val);
+                XrString *field_name = xr_tostring(field_name_val);
+                
+                /* 类型名（可选，c=0表示无类型）*/
+                XrTypeInfo *type_info = NULL;
+                if (c > 0) {
+                    XrValue type_name_val = K(c);
+                    if (xr_isstring(type_name_val)) {
+                        XrString *type_name = xr_tostring(type_name_val);
+                        /* TODO: 将类型名转换为XrTypeInfo */
+                        (void)type_name;  /* 暂时不用 */
+                    }
+                }
+                
+                /* 添加字段到类 */
+                xr_class_add_field(cls, field_name->chars, type_info);
+                
+                break;
+            }
+            
+            case OP_METHOD: {
+                /* R[A][K[B] or Symbol[B]] = R[C] - 给类添加方法 */
+                /* v0.20.0: 支持Symbol模式 */
+                TRACE_EXECUTION();
+                int a = GETARG_A(inst);
+                int b = GETARG_B(inst);
+                int c = GETARG_C(inst);
+                
+                XrValue class_val = R(a);
+                XrValue closure_val = R(c);
+                
+                if (!xr_value_is_class(class_val)) {
+                    xr_bc_runtime_error(vm, "OP_METHOD: not a class");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                
+                if (!xr_isfunction(closure_val)) {
+                    xr_bc_runtime_error(vm, "Method value must be a function");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                
+                XrClass *cls = xr_value_to_class(class_val);
+                XrClosure *closure = xr_value_to_closure(closure_val);
+                
+                /* v0.20.0: B参数现在是symbol（整数）*/
+                int method_symbol = b;
+                
+                /* 从全局Symbol表获取方法名（用于创建XrMethod）*/
+                const char *method_name = symbol_get_name(global_method_symbols, method_symbol);
+                if (method_name == NULL) {
+                    xr_bc_runtime_error(vm, "Invalid method symbol: %d", method_symbol);
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                
+                /* 创建XrFunction对象（从闭包） */
+                XrFunction *func = closure->proto;
+                
+                /* 创建方法对象并通过symbol添加到类（高性能）*/
+                XrMethod *method = xr_method_new(NULL, method_name, func, false);
+                xr_class_add_method_by_symbol(cls, method_symbol, method);  /* ⭐ 使用by_symbol */
+                break;
+            }
+            
+            case OP_INVOKE: {
+                /* R[A] = R[A]:Symbol[B](R[A+1]..R[A+C]) - 方法调用 */
+                /* v0.20.0: B参数现在是symbol，不再是常量索引 */
+                TRACE_EXECUTION();
+                int a = GETARG_A(inst);
+                int b = GETARG_B(inst);
+                int nargs = GETARG_C(inst);
+                
+                XrValue receiver = R(a);
+                
+                /* v0.20.0: B参数现在是symbol（整数） */
+                int method_symbol = b;
+                
+                /* 从Symbol表获取方法名（用于查找）*/
+                const char *method_name_chars = symbol_get_name(global_method_symbols, method_symbol);
+                if (method_name_chars == NULL) {
+                    xr_bc_runtime_error(vm, "Invalid method symbol: %d", method_symbol);
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                
+                /* 检查是否为类（用于new操作） */
+                if (xr_value_is_class(receiver)) {
+                    /* 调用构造函数：创建实例 */
+                    XrClass *cls = xr_value_to_class(receiver);
+                    
+                    if (strcmp(method_name_chars, "constructor") == 0) {
+                        /* 创建实例 */
+                        XrInstance *inst = xr_instance_new(NULL, cls);
+                        XrValue inst_val = xr_value_from_instance(inst);
+                        
+                        /* v0.20.0: 通过symbol查找构造函数（高性能）*/
+                        XrMethod *ctor = xr_class_lookup_method_by_symbol(cls, method_symbol);
+                        if (ctor != NULL && ctor->func != NULL) {
+                            /* 获取方法的Proto（注意：func实际是Proto*） */
+                            Proto *proto = (Proto*)ctor->func;
+                            
+                            /* 检查参数数量（构造函数没有显式this参数） */
+                            /* constructor(x, y) 编译时第一个参数是隐式的this */
+                            /* 但调用时nargs不包含this */
+                            if (nargs + 1 != proto->numparams) {  /* +1因为编译时添加了this */
+                                xr_bc_runtime_error(vm, "Constructor expects %d arguments but got %d",
+                                                 proto->numparams - 1, nargs);
+                                return INTERPRET_RUNTIME_ERROR;
+                            }
+                            
+                            /* 检查栈空间 */
+                            if (vm->frame_count >= FRAMES_MAX) {
+                                xr_bc_runtime_error(vm, "Stack overflow");
+                                return INTERPRET_RUNTIME_ERROR;
+                            }
+                            
+                            /* 创建堆上的闭包对象 */
+                            XrClosure *closure = (XrClosure*)gc_alloc(sizeof(XrClosure), OBJ_CLOSURE);
+                            closure->header.type = XR_TFUNCTION;
+                            closure->header.next = vm->objects;
+                            closure->header.marked = false;
+                            closure->proto = proto;
+                            closure->upvalue_count = 0;
+                            closure->upvalues = NULL;
+                            vm->objects = (XrObject*)closure;
+                            
+                            /* 将this放到参数位置的第一个 */
+                            /* 参数布局：R[a+1] = this, R[a+2] = arg1, R[a+3] = arg2, ... */
+                            /* 需要将参数右移一位，为this腾出空间 */
+                            for (int i = nargs; i > 0; i--) {
+                                R(a + 1 + i) = R(a + 1 + i - 1);
+                            }
+                            R(a + 1) = inst_val;  /* this */
+                            
+                            /* 创建新的调用帧 */
+                            BcCallFrame *new_frame = &vm->frames[vm->frame_count++];
+                            new_frame->closure = closure;
+                            new_frame->pc = proto->code;
+                            new_frame->base = frame->base + a + 1;  /* 参数从R[a+1]开始 */
+                            
+                            /* 跳转到新函数 */
+                            frame = new_frame;
+                            goto startfunc;
+                        }
+                        
+                        /* 没有构造函数或执行完毕，返回实例 */
+                        R(a) = inst_val;
+                    } else {
+                        xr_bc_runtime_error(vm, "Cannot call method '%s' on class", method_name_chars);
+                        return INTERPRET_RUNTIME_ERROR;
+                    }
+                } else if (xr_value_is_instance(receiver)) {
+                    /* 调用实例方法 */
+                    XrInstance *inst = xr_value_to_instance(receiver);
+                    
+                /* v0.20.0: 通过symbol查找方法（高性能O(1)）*/
+                XrMethod *method = xr_class_lookup_method_by_symbol(inst->klass, method_symbol);
+                    if (method == NULL || method->func == NULL) {
+                        xr_bc_runtime_error(vm, "Method '%s' not found", method_name_chars);
+                        return INTERPRET_RUNTIME_ERROR;
+                    }
+                    
+                    /* 获取方法的Proto（注意：func实际是Proto*） */
+                    Proto *proto = (Proto*)method->func;
+                    
+                    /* 检查参数数量 */
+                    if (nargs + 1 != proto->numparams) {  /* +1因为编译时添加了this */
+                        xr_bc_runtime_error(vm, "Method '%s' expects %d arguments but got %d",
+                                         method_name_chars, proto->numparams - 1, nargs);
+                        return INTERPRET_RUNTIME_ERROR;
+                    }
+                    
+                    /* 检查栈空间 */
+                    if (vm->frame_count >= FRAMES_MAX) {
+                        xr_bc_runtime_error(vm, "Stack overflow");
+                        return INTERPRET_RUNTIME_ERROR;
+                    }
+                    
+                    /* 创建堆上的闭包对象 */
+                    XrClosure *closure = (XrClosure*)gc_alloc(sizeof(XrClosure), OBJ_CLOSURE);
+                    closure->header.type = XR_TFUNCTION;
+                    closure->header.next = vm->objects;
+                    closure->header.marked = false;
+                    closure->proto = proto;
+                    closure->upvalue_count = 0;
+                    closure->upvalues = NULL;
+                    vm->objects = (XrObject*)closure;
+                    
+                    /* 将this放到参数位置的第一个 */
+                    for (int i = nargs; i > 0; i--) {
+                        R(a + 1 + i) = R(a + 1 + i - 1);
+                    }
+                    R(a + 1) = receiver;  /* this */
+                    
+                    /* 创建新的调用帧 */
+                    BcCallFrame *new_frame = &vm->frames[vm->frame_count++];
+                    new_frame->closure = closure;
+                    new_frame->pc = proto->code;
+                    new_frame->base = frame->base + a + 1;
+                    
+                    /* 跳转到新函数 */
+                    frame = new_frame;
+                    goto startfunc;
+                } else {
+                    xr_bc_runtime_error(vm, "INVOKE: receiver must be a class or instance");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                break;
+            }
+            
+            case OP_GETPROP: {
+                /* R[A] = R[B].K[C] */
+                TRACE_EXECUTION();
+                int a = GETARG_A(inst);
+                int b = GETARG_B(inst);
+                int c = GETARG_C(inst);
+                
+                XrValue obj = R(b);
+                XrValue prop_name_val = K(c);
+                
+                if (!xr_value_is_instance(obj)) {
+                    xr_bc_runtime_error(vm, "Only instances have properties");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                
+                if (!xr_isstring(prop_name_val)) {
+                    xr_bc_runtime_error(vm, "Property name must be a string");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                
+                XrInstance *inst = xr_value_to_instance(obj);
+                XrString *prop_name = xr_tostring(prop_name_val);
+                
+                /* 验证字段是否在类中声明（仅当类有字段定义时）*/
+                if (inst->klass->field_count > 0) {
+                    int field_index = xr_class_find_field_index(inst->klass, prop_name->chars);
+                    if (field_index < 0) {
+                        xr_bc_runtime_error(vm, "字段 '%s' 未在类 '%s' 中声明",
+                                         prop_name->chars, inst->klass->name);
+                        return INTERPRET_RUNTIME_ERROR;
+                    }
+                }
+                
+                R(a) = xr_instance_get_field(inst, prop_name->chars);
+                break;
+            }
+            
+            case OP_SETPROP: {
+                /* R[A].K[B] = R[C] */
+                TRACE_EXECUTION();
+                int a = GETARG_A(inst);
+                int b = GETARG_B(inst);
+                int c = GETARG_C(inst);
+                
+                XrValue obj = R(a);
+                XrValue prop_name_val = K(b);
+                XrValue value = R(c);
+                
+                if (!xr_value_is_instance(obj)) {
+                    xr_bc_runtime_error(vm, "Only instances have properties");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                
+                if (!xr_isstring(prop_name_val)) {
+                    xr_bc_runtime_error(vm, "Property name must be a string");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                
+                XrInstance *inst = xr_value_to_instance(obj);
+                XrString *prop_name = xr_tostring(prop_name_val);
+                
+                /* 验证字段是否在类中声明（仅当类有字段定义时）*/
+                if (inst->klass->field_count > 0) {
+                    int field_index = xr_class_find_field_index(inst->klass, prop_name->chars);
+                    if (field_index < 0) {
+                        xr_bc_runtime_error(vm, "字段 '%s' 未在类 '%s' 中声明",
+                                         prop_name->chars, inst->klass->name);
+                        return INTERPRET_RUNTIME_ERROR;
+                    }
+                }
+                
+                xr_instance_set_field(inst, prop_name->chars, value);
+                break;
             }
             
             default:

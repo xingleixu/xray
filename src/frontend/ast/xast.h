@@ -15,6 +15,17 @@
 typedef struct AstNode AstNode;
 
 /*
+** 运算符类型（v0.19.0新增）
+** 用于区分不同类型的运算符重载
+*/
+typedef enum {
+    OP_BINARY,        /* 二元运算符: +, -, *, /, ==, <, > 等 */
+    OP_UNARY,         /* 一元运算符: -, !, ~ 等 */
+    OP_SUBSCRIPT,     /* 下标运算符: [] */
+    OP_SUBSCRIPT_SET  /* 下标赋值: []= */
+} OperatorType;
+
+/*
 ** AST 节点类型
 ** 定义了所有支持的表达式和语句节点
 */
@@ -345,9 +356,10 @@ typedef struct {
 /*
 ** 方法声明节点（v0.12.0）
 ** greet() { ... } 或 constructor(name) { ... }
+** v0.19.0：支持运算符重载 operator +(other) { ... }
 */
 typedef struct {
-    char *name;             /* 方法名 */
+    char *name;             /* 方法名或运算符符号（如"+"） */
     char **parameters;      /* 参数列表 */
     char **param_types;     /* 参数类型列表（可选）*/
     int param_count;        /* 参数数量 */
@@ -358,6 +370,10 @@ typedef struct {
     bool is_private;        /* 是否私有方法 */
     bool is_getter;         /* 是否getter */
     bool is_setter;         /* 是否setter */
+    
+    /* v0.19.0新增：运算符重载相关 */
+    bool is_operator;       /* 是否为运算符重载方法 */
+    OperatorType op_type;   /* 运算符类型 */
 } MethodDeclNode;
 
 /*

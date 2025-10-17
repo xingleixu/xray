@@ -43,9 +43,15 @@ struct XrClass {
     int field_count;           /* 字段总数（包括继承的）*/
     int own_field_count;       /* 本类定义的字段数量（不含继承）*/
     
-    /* 方法表 */
-    XrHashMap *methods;        /* 实例方法表：name → XrMethod */
+    /* v0.20.0: 方法表改为数组（Symbol索引优化）*/
+    XrMethod **methods;        /* 实例方法数组：symbol → XrMethod */
+    int method_count;          /* 方法数组大小 */
+    
+    /* 静态方法（暂时保持哈希表）*/
     XrHashMap *static_methods; /* 静态方法表：name → XrMethod */
+    
+    /* v0.20.0: 保留旧的哈希表用于向后兼容（可选）*/
+    XrHashMap *methods_map;    /* 备用：name → XrMethod（用于symbol_get_name查找）*/
     
     /* 访问控制（Day 12-14实现）*/
     XrHashMap *private_fields; /* 私有字段集合：name → true */
@@ -119,6 +125,28 @@ void xr_class_add_method(XrClass *cls, XrMethod *method);
 ** @return          方法对象（NULL表示未找到）
 */
 XrMethod* xr_class_lookup_method(XrClass *cls, const char *name);
+
+/*
+** v0.20.0: 通过Symbol查找方法（高性能版本）
+** 
+** @param cls       类对象
+** @param symbol    方法symbol
+** @return          方法对象（NULL表示未找到）
+** 
+** 性能：O(1)直接数组访问
+*/
+XrMethod* xr_class_lookup_method_by_symbol(XrClass *cls, int symbol);
+
+/*
+** v0.20.0: 通过Symbol添加方法
+** 
+** @param cls       类对象
+** @param symbol    方法symbol
+** @param method    方法对象
+** 
+** 说明：如果symbol >= method_count，自动扩展数组
+*/
+void xr_class_add_method_by_symbol(XrClass *cls, int symbol, XrMethod *method);
 
 /*
 ** 添加静态方法（Day 15-16实现）

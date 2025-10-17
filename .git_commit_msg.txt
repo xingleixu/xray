@@ -1,73 +1,46 @@
-feat: 第十二阶段完成 - 实现完整的OOP系统（v0.12.2）
+重构：全面重组项目结构并实现模块化
 
-实现了完整的面向对象编程系统，Xray正式成为OOP语言。
+主要变更：
 
-核心功能：
-- 类定义和单继承（class/extends）
-- 实例化（new）
-- 构造函数（constructor）
-- 方法定义和调用
-- 字段访问和赋值
-- this自动绑定
-- 访问控制框架（private/public）
-- 静态成员支持（static）
+1. 构建系统
+   - 移除 Makefile，改用 CMake (CMakeLists.txt)
+   - 新增 run_all_tests.sh 测试脚本
 
-技术实现：
-- 纯类设计
-- 单继承模型（super指针链）
-- 哈希表方法表
-- 柔性数组成员实例
-- this自动绑定到方法符号表
-- 静态字段/方法独立存储
+2. 目录结构重组
+   - src/backend/: 后端模块（编译器、虚拟机、字节码）
+     * compiler/: 编译器及优化模块（fusion、inline、peephole）
+     * vm/: 虚拟机核心及上下文管理
+     * bytecode/: 字节码生成和调试
+   
+   - src/frontend/: 前端模块（词法、语法、AST）
+     * lexer/: 词法分析
+     * parser/: 语法分析及 OOP/类型解析
+     * ast/: 抽象语法树
+   
+   - src/runtime/: 运行时系统
+     * closure/: 闭包、函数原型、upvalue
+     * objects/: 运行时对象（数组、类、实例、映射、方法、字符串）
+   
+   - src/utils/: 工具模块
+     * 哈希表、作用域管理等工具
+   
+   - tests/: 测试系统
+     * framework/: 测试框架（xtest.h）
+     * unit/: 单元测试（包含上下文和错误处理测试）
 
-关键修复：
-- 修复static关键字识别bug（check_keyword参数）
-- 修复方法体解析（添加consume LBRACE）
-- 修复this绑定（xr_eval_call_function参数偏移）
-- 实现成员赋值语法（obj.field = value）
+3. 新增功能
+   - 编译器上下文管理 (compiler_context)
+   - 虚拟机上下文管理 (vm_context)
+   - 统一错误处理 (xerror)
+   - 编译器优化：指令融合(fusion)、内联(inline)、窥孔优化(peephole)
 
-代码量：
-- 新增核心代码：3,360行
-- 新增测试代码：490行
-- 新增10个核心模块
-- 修改9个现有文件（+700行）
-- 新增13个示例程序
+4. 代码清理
+   - 删除过时文件：xcompiler.c, xstate.c, xvalue.c, xmem.c 等
+   - 删除冗余头文件：xeval.h, xgc.h, xobject.h
+   - 统一头文件到 include/xray/
 
-测试：
-- 19个单元测试（100%通过）
-- 13+个集成测试（全部运行）
-- test_class_basic: 12个测试
-- test_class_inherit: 7个测试
+5. 文档和配置
+   - 更新 README.md 和 BUILD.md
+   - 配置 .gitignore 仅保留 BUILD.md 和 README.md
 
-版本：
-- v0.12.0: 核心OOP系统
-- v0.12.1: 访问控制框架
-- v0.12.2: 静态成员支持
-
-新增文件：
-- xclass.h/c - 类对象系统
-- xinstance.h/c - 实例对象系统
-- xmethod.h/c - 方法对象系统
-- xhashmap.h/c - 字符串哈希表
-- xparse_oop.c - OOP Parser实现
-- xeval_oop.c - OOP Evaluator实现
-- test/test_class_basic.c - 基础测试
-- test/test_class_inherit.c - 继承测试
-- 13个example/*.xr示例程序
-
-修改文件：
-- xvalue.h/c - OOP值类型支持
-- xgc.h - OOP对象类型
-- xstate.h/c - 状态机API
-- xlex.h/c - OOP关键字（含static bug修复）
-- xast.h/c - OOP AST节点
-- xparse.h/c - OOP解析集成
-- xeval.h/c - OOP求值集成（含静态成员）
-- Makefile - 编译规则
-
-质量：
-- TDD开发
-- 详细中文注释
-- 完整文档（15个）
-- 100%测试通过
-- 端到端可用
+此次重构使代码结构更加清晰、模块化，为后续开发和维护奠定了良好基础。

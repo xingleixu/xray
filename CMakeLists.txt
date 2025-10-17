@@ -36,6 +36,7 @@ include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/src/frontend/parser
     ${CMAKE_CURRENT_SOURCE_DIR}/src/frontend/ast
     ${CMAKE_CURRENT_SOURCE_DIR}/src/backend/compiler
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/compiler
     ${CMAKE_CURRENT_SOURCE_DIR}/src/backend/vm
     ${CMAKE_CURRENT_SOURCE_DIR}/src/backend/bytecode
     ${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/closure
@@ -57,6 +58,7 @@ file(GLOB FRONTEND_AST_SRC "src/frontend/ast/*.c")
 
 # 后端层
 file(GLOB BACKEND_COMPILER_SRC "src/backend/compiler/*.c")
+file(GLOB COMPILER_SRC "src/compiler/*.c")
 file(GLOB BACKEND_VM_SRC "src/backend/vm/*.c")
 file(GLOB BACKEND_BYTECODE_SRC "src/backend/bytecode/*.c")
 
@@ -76,6 +78,7 @@ set(CORE_SOURCES
     ${FRONTEND_PARSER_SRC}
     ${FRONTEND_AST_SRC}
     ${BACKEND_COMPILER_SRC}
+    ${COMPILER_SRC}
     ${BACKEND_VM_SRC}
     ${BACKEND_BYTECODE_SRC}
     ${RUNTIME_CLOSURE_SRC}

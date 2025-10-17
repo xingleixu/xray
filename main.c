@@ -14,6 +14,7 @@
 #include "xvm.h"
 #include "xdebug.h"
 #include "xast.h"
+#include "xsymbol.h"  /* v0.20.0: Symbol系统 */
 
 /* 版本信息 */
 #define XRAY_VERSION        "Xray 0.17.0 (Bytecode VM + CALLSELF Optimization)"
@@ -152,10 +153,14 @@ int main(int argc, char *argv[]) {
     int dump_ast = 0;
     int dump_bc = 0;
     
+    /* v0.20.0: 初始化全局Symbol表（方法索引优化）*/
+    init_global_symbols();
+    
     /* 创建 Xray 状态 */
     X = xr_state_new();
     if (X == NULL) {
         fprintf(stderr, "无法创建 Xray 状态\n");
+        cleanup_global_symbols();  /* 清理Symbol表 */
         return 1;
     }
     
@@ -223,6 +228,9 @@ int main(int argc, char *argv[]) {
     
     /* 清理 */
     xr_state_free(X);
+    
+    /* v0.20.0: 清理全局Symbol表 */
+    cleanup_global_symbols();
     
     return status;
 }

@@ -38,6 +38,12 @@ XrClass* xr_class_new(XrayState *X, const char *name, XrClass *super) {
     /* 分配类对象内存 */
     XrClass *cls = XR_ALLOCATE(XrClass, OBJ_CLASS);
     
+    /* 初始化XrObject头部 */
+    cls->header.type = XR_TCLASS;
+    cls->header.type_info = NULL;
+    cls->header.marked = false;
+    cls->header.next = NULL;
+    
     /* 初始化基本字段 */
     cls->name = str_dup(name);
     cls->super = super;
@@ -49,9 +55,15 @@ XrClass* xr_class_new(XrayState *X, const char *name, XrClass *super) {
     cls->field_count = 0;
     cls->own_field_count = 0;
     
-    /* 创建方法表 */
-    cls->methods = xr_hashmap_new();
+    /* v0.20.0: 初始化方法数组 */
+    cls->methods = NULL;       /* 方法数组（按需分配）*/
+    cls->method_count = 0;
+    
+    /* 静态方法（保持哈希表）*/
     cls->static_methods = xr_hashmap_new();
+    
+    /* v0.20.0: 初始化备用哈希表（向后兼容）*/
+    cls->methods_map = xr_hashmap_new();
     
     /* 创建访问控制表 */
     cls->private_fields = xr_hashmap_new();
@@ -93,8 +105,15 @@ void xr_class_free(XrClass *cls) {
         xmem_free(cls->field_types);
     }
     
+    /* v0.20.0: 释放方法数组 */
+    if (cls->methods) {
+        xmem_free(cls->methods);
+    }
+    
     /* 释放哈希表 */
-    xr_hashmap_free(cls->methods);
+    if (cls->methods_map) {
+        xr_hashmap_free(cls->methods_map);
+    }
     xr_hashmap_free(cls->static_methods);
     xr_hashmap_free(cls->private_fields);
     xr_hashmap_free(cls->private_methods);
@@ -182,33 +201,94 @@ int xr_class_find_field_index(XrClass *cls, const char *name) {
 }
 
 /*
-** 添加方法
+** v0.20.0: 通过Symbol添加方法（高性能版本）
+*/
+void xr_class_add_method_by_symbol(XrClass *cls, int symbol, XrMethod *method) {
+    assert(cls != NULL);
+    assert(method != NULL);
+    assert(symbol >= 0);
+    
+    /* 扩展方法数组（如果需要）*/
+    if (symbol >= cls->method_count) {
+        int new_count = symbol + 1;
+        
+        /* 重新分配数组 */
+        XrMethod **new_methods = (XrMethod**)xmem_alloc(sizeof(XrMethod*) * new_count);
+        
+        /* 复制旧数据 */
+        for (int i = 0; i < cls->method_count; i++) {
+            new_methods[i] = cls->methods[i];
+        }
+        
+        /* 填充NULL */
+        for (int i = cls->method_count; i < new_count; i++) {
+            new_methods[i] = NULL;
+        }
+        
+        /* 释放旧数组并使用新数组 */
+        if (cls->methods) {
+            xmem_free(cls->methods);
+        }
+        cls->methods = new_methods;
+        cls->method_count = new_count;
+    }
+    
+    /* 设置方法 */
+    cls->methods[symbol] = method;
+    
+    /* 同时添加到哈希表（向后兼容）*/
+    xr_hashmap_set(cls->methods_map, method->name, method);
+}
+
+/*
+** 添加方法（向后兼容接口）
 */
 void xr_class_add_method(XrClass *cls, XrMethod *method) {
     assert(cls != NULL);
     assert(method != NULL);
     
-    xr_hashmap_set(cls->methods, method->name, method);
+    /* v0.20.0: 保持向后兼容，仍使用哈希表 */
+    xr_hashmap_set(cls->methods_map, method->name, method);
 }
 
 /*
-** 查找方法（支持继承链查找）
+** v0.20.0: 通过Symbol查找方法（高性能版本）
 */
-XrMethod* xr_class_lookup_method(XrClass *cls, const char *name) {
-    if (!cls || !name) return NULL;
+XrMethod* xr_class_lookup_method_by_symbol(XrClass *cls, int symbol) {
+    if (!cls || symbol < 0) return NULL;
     
-    /* 1. 当前类查找 */
-    XrMethod *method = (XrMethod*)xr_hashmap_get(cls->methods, name);
-    if (method) {
-        return method;
+    /* 1. 当前类查找（O(1)数组访问）*/
+    if (symbol < cls->method_count && cls->methods[symbol]) {
+        return cls->methods[symbol];
     }
     
     /* 2. 超类递归查找（支持继承）*/
     if (cls->super) {
-        return xr_class_lookup_method(cls->super, name);
+        return xr_class_lookup_method_by_symbol(cls->super, symbol);
     }
     
     /* 3. 未找到 */
+    return NULL;
+}
+
+/*
+** 查找方法（向后兼容接口）
+*/
+XrMethod* xr_class_lookup_method(XrClass *cls, const char *name) {
+    if (!cls || !name) return NULL;
+    
+    /* v0.20.0: 使用哈希表查找（向后兼容）*/
+    XrMethod *method = (XrMethod*)xr_hashmap_get(cls->methods_map, name);
+    if (method) {
+        return method;
+    }
+    
+    /* 超类递归查找（支持继承）*/
+    if (cls->super) {
+        return xr_class_lookup_method(cls->super, name);
+    }
+    
+    /* 未找到 */
     return NULL;
 }
 
@@ -354,8 +434,12 @@ void xr_class_print(XrClass *cls) {
         printf("\n");
     }
     
-    /* 打印方法数量 */
-    printf("  Methods: %d\n", cls->methods->count);
+    /* v0.20.0: 打印方法数量（methods现在是数组）*/
+    int method_count = 0;
+    for (int i = 0; i < cls->method_count; i++) {
+        if (cls->methods[i]) method_count++;
+    }
+    printf("  Methods: %d (array size: %d)\n", method_count, cls->method_count);
     printf("  Static methods: %d\n", cls->static_methods->count);
     
     printf("}\n");

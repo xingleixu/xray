@@ -132,8 +132,9 @@ typedef enum {
     OP_SETUPVAL,    /* UpValue[B] = R[A] */
     OP_CLOSE,       /* close upvalues >= R[A] */
     
-    /* === OOP（8个）=== */
+    /* === OOP（9个）=== */
     OP_CLASS,       /* R[A] = new Class */
+    OP_ADDFIELD,    /* R[A].add_field(K[B], K[C]) (添加字段定义) */
     OP_INHERIT,     /* R[A].super = R[B] */
     OP_GETPROP,     /* R[A] = R[B].K[C] */
     OP_SETPROP,     /* R[A].K[B] = R[C] */

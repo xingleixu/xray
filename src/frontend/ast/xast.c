@@ -653,7 +653,7 @@ AstNode *xr_ast_member_set(XrayState *X, AstNode *object, const char *member,
                            AstNode *value, int line) {
     AstNode *node = alloc_node(X, AST_MEMBER_SET, line);
     node->as.member_set.object = object;
-    node->as.member_set.member = (char*)member;
+    node->as.member_set.member = strdup(member);  /* 复制字符串，避免悬空指针 */
     node->as.member_set.value = value;
     return node;
 }

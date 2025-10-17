@@ -137,6 +137,12 @@ AstNode *xr_parse_field_declaration(Parser *parser, bool *is_method_out) {
         is_setter = true;
     }
     
+    /* v0.19.0：检查operator关键字 */
+    if (match(parser, TK_OPERATOR)) {
+        *is_method_out = true;
+        return xr_parse_operator_method(parser, is_private, is_static);
+    }
+    
     /* 解析成员名（可能是constructor关键字）*/
     char *name = NULL;
     bool is_constructor = false;
@@ -425,5 +431,122 @@ AstNode *xr_parse_super_expression(Parser *parser) {
     
     /* 创建super调用节点 */
     return xr_ast_super_call(parser->X, method_name, arguments, arg_count, line);
+}
+
+/* ========== 运算符方法解析（v0.19.0新增）========== */
+
+/*
+** 解析运算符方法声明
+** 
+** 语法：
+**   operator +(other: Type): Type { ... }
+** 
+** @param is_private 是否私有
+** @param is_static 是否静态
+** 
+** 第一个版本：只支持二元 + 运算符
+*/
+AstNode *xr_parse_operator_method(Parser *parser, bool is_private, bool is_static) {
+    int line = parser->previous.line;
+    
+    /* 解析运算符符号 */
+    TokenType op_token = parser->current.type;
+    
+    /* 第一个版本只支持 + 运算符 */
+    if (op_token != TK_PLUS) {
+        error(parser, "当前版本只支持 operator +");
+        return NULL;
+    }
+    
+    xr_parser_advance(parser);  /* 消费运算符 token */
+    
+    /* 运算符方法名就是符号本身 */
+    char *name = (char*)xmem_alloc(2);
+    strcpy(name, "+");
+    
+    /* 解析参数列表 */
+    consume(parser, TK_LPAREN, "期望'('开始参数列表");
+    
+    char **parameters = NULL;
+    char **param_types = NULL;
+    int param_count = 0;
+    
+    /* 二元运算符必须有且只有一个参数 */
+    if (check(parser, TK_RPAREN)) {
+        error(parser, "二元运算符 + 需要一个参数");
+        return NULL;
+    }
+    
+    /* 解析第一个参数 */
+    consume(parser, TK_NAME, "期望参数名");
+    
+    parameters = (char**)xmem_alloc(sizeof(char*));
+    param_types = (char**)xmem_alloc(sizeof(char*));
+    parameters[0] = token_to_string(&parser->previous);
+    
+    /* 解析参数类型（可选）*/
+    if (match(parser, TK_COLON)) {
+        /* 跳过类型（简化版本）*/
+        if (match(parser, TK_TYPE_INT) || match(parser, TK_TYPE_FLOAT) || 
+            match(parser, TK_TYPE_STRING) || match(parser, TK_BOOL) ||
+            match(parser, TK_NAME)) {
+            param_types[0] = token_to_string(&parser->previous);
+        } else {
+            error(parser, "期望类型名");
+            param_types[0] = NULL;
+        }
+    } else {
+        param_types[0] = NULL;
+    }
+    
+    param_count = 1;
+    
+    /* 不应该有更多参数 */
+    if (match(parser, TK_COMMA)) {
+        error(parser, "二元运算符 + 只能有一个参数");
+        return NULL;
+    }
+    
+    consume(parser, TK_RPAREN, "期望')'结束参数列表");
+    
+    /* 解析返回类型（可选）*/
+    char *return_type = NULL;
+    if (match(parser, TK_COLON)) {
+        if (match(parser, TK_TYPE_INT)) {
+            return_type = (char*)xmem_alloc(4);
+            strcpy(return_type, "int");
+        } else if (match(parser, TK_TYPE_FLOAT)) {
+            return_type = (char*)xmem_alloc(6);
+            strcpy(return_type, "float");
+        } else if (match(parser, TK_TYPE_STRING)) {
+            return_type = (char*)xmem_alloc(7);
+            strcpy(return_type, "string");
+        } else if (match(parser, TK_NAME)) {
+            return_type = token_to_string(&parser->previous);
+        } else {
+            error(parser, "期望返回类型");
+        }
+    }
+    
+    /* 解析方法体 */
+    consume(parser, TK_LBRACE, "期望'{'开始方法体");
+    AstNode *body = xr_parse_block(parser);
+    
+    /* 创建方法节点 */
+    AstNode *method = xr_ast_method_decl(parser->X, name, 
+                                        parameters, param_types, param_count,
+                                        return_type, body,
+                                        false,  /* is_constructor */
+                                        is_static,
+                                        is_private,
+                                        false,  /* is_getter */
+                                        false,  /* is_setter */
+                                        line);
+    
+    /* 设置运算符标记 */
+    method->as.method_decl.is_operator = true;  /* 标记为运算符方法 */
+    method->as.method_decl.op_type = OP_BINARY;  /* 二元运算符 */
+    
+    return method;
 }
 

@@ -11,6 +11,7 @@
 #include "xinline.h"
 #include "xmem.h"
 #include "xstring.h"
+#include "xsymbol.h"  /* v0.20.0: Symbol系统支持 */
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
@@ -44,6 +45,12 @@ static void compile_return(CompilerContext *ctx, Compiler *compiler, ReturnStmtN
 static int compile_array_literal(CompilerContext *ctx, Compiler *compiler, ArrayLiteralNode *node);
 static int compile_index_get(CompilerContext *ctx, Compiler *compiler, IndexGetNode *node);
 static void compile_index_set(CompilerContext *ctx, Compiler *compiler, IndexSetNode *node);
+
+/* OOP相关编译函数（v0.19.0新增）*/
+static void compile_class(CompilerContext *ctx, Compiler *compiler, ClassDeclNode *node);
+static int compile_new_expr(CompilerContext *ctx, Compiler *compiler, NewExprNode *node);
+static int compile_member_access(CompilerContext *ctx, Compiler *compiler, MemberAccessNode *node);
+static void compile_member_set(CompilerContext *ctx, Compiler *compiler, MemberSetNode *node);
 
 /* ========== 错误处理 ========== */
 
@@ -844,6 +851,17 @@ int xr_compile_expression(CompilerContext *ctx, Compiler *compiler, AstNode *nod
         case AST_INDEX_GET:
             return compile_index_get(ctx, compiler, &node->as.index_get);
         
+        /* v0.19.0：OOP表达式 */
+        case AST_NEW_EXPR:
+            return compile_new_expr(ctx, compiler, &node->as.new_expr);
+        
+        case AST_MEMBER_ACCESS:
+            return compile_member_access(ctx, compiler, &node->as.member_access);
+        
+        case AST_THIS_EXPR:
+            /* this表达式：返回寄存器0（this总是在寄存器0） */
+            return 0;
+        
         default:
             xr_compiler_error(ctx, compiler, "Unsupported expression type: %d (%s at line %d)", 
                             node->type, 
@@ -864,6 +882,14 @@ static void compile_expr_stmt(CompilerContext *ctx, Compiler *compiler, AstNode 
         compile_assignment(ctx, compiler, &expr->as.assignment);
         return;
     }
+    
+    /* 特殊处理成员赋值语句 */
+    if (expr->type == AST_MEMBER_SET) {
+        compile_member_set(ctx, compiler, &expr->as.member_set);
+        return;
+    }
+    
+    /* 特殊处理索引赋值语句 */
     if (expr->type == AST_INDEX_SET) {
         compile_index_set(ctx, compiler, &expr->as.index_set);
         return;
@@ -1195,6 +1221,33 @@ static void compile_function(CompilerContext *ctx, Compiler *compiler, FunctionD
 ** is_tail: 是否是尾调用位置（Phase 2新增）
 */
 static int compile_call_internal(CompilerContext *ctx, Compiler *compiler, CallExprNode *node, bool is_tail) {
+    /* ⭐ v0.19.0：检测方法调用模式 obj.method() */
+    if (node->callee->type == AST_MEMBER_ACCESS) {
+        MemberAccessNode *member = &node->callee->as.member_access;
+        
+        /* 编译对象表达式 */
+        int obj_reg = xr_compile_expression(ctx, compiler, member->object);
+        
+        /* 编译参数到连续寄存器 */
+        for (int i = 0; i < node->arg_count; i++) {
+            int arg_reg = xr_compile_expression(ctx, compiler, node->arguments[i]);
+            if (arg_reg != obj_reg + i + 1) {
+                xr_emit_ABC(ctx, compiler, OP_MOVE, obj_reg + i + 1, arg_reg, 0);
+                xr_freereg(compiler, arg_reg);
+            }
+        }
+        
+        /* v0.20.0: 使用Symbol代替方法名字符串 */
+        int method_symbol = symbol_get_or_create(global_method_symbols, member->name);
+        
+        /* 生成OP_INVOKE指令 */
+        /* 注意：现在B参数是symbol，不再是常量索引 */
+        xr_emit_ABC(ctx, compiler, OP_INVOKE, obj_reg, method_symbol, node->arg_count);
+        
+        /* 返回值在obj_reg */
+        return obj_reg;
+    }
+    
     /* ⭐ v0.16.0优化：检测递归调用模式 */
     bool is_recursive = false;
     
@@ -1438,6 +1491,15 @@ void xr_compile_statement(CompilerContext *ctx, Compiler *compiler, AstNode *nod
             break;
         }
         
+        /* v0.19.0：OOP相关节点 */
+        case AST_CLASS_DECL:
+            compile_class(ctx, compiler, &node->as.class_decl);
+            break;
+        
+        case AST_MEMBER_SET:
+            compile_member_set(ctx, compiler, &node->as.member_set);
+            break;
+        
         default:
             xr_compiler_error(ctx, compiler, "Unsupported statement type: %d", node->type);
             break;
@@ -1499,5 +1561,202 @@ Proto *xr_compile(CompilerContext *ctx, AstNode *ast) {
     
     /* 结束编译 */
     return xr_compiler_end(ctx, &compiler);
+}
+
+/* ========== OOP编译支持（v0.19.0新增）========== */
+
+/*
+** 编译类声明
+** class Number { ... }
+*/
+static void compile_class(CompilerContext *ctx, Compiler *compiler, ClassDeclNode *node) {
+    /* 创建类对象并存储为全局变量 */
+    int class_reg = xr_allocreg(ctx, compiler);
+    
+    /* 生成 OP_CLASS 指令创建类对象 */
+    XrString *class_name = xr_string_new(node->name, strlen(node->name));
+    int name_idx = xr_bc_proto_add_constant(compiler->proto, XR_OBJ_TO_VAL(class_name));
+    xr_emit_ABx(ctx, compiler, OP_CLASS, class_reg, name_idx);
+    
+    /* 处理字段声明 */
+    for (int i = 0; i < node->field_count; i++) {
+        AstNode *field_node = node->fields[i];
+        
+        if (field_node->type != AST_FIELD_DECL) {
+            continue;
+        }
+        
+        FieldDeclNode *field = &field_node->as.field_decl;
+        
+        /* 生成字段名常量 */
+        XrString *field_name = xr_string_new(field->name, strlen(field->name));
+        int field_name_idx = xr_bc_proto_add_constant(compiler->proto, XR_OBJ_TO_VAL(field_name));
+        
+        /* 生成类型名常量（如果有）*/
+        int type_name_idx = 0;  /* 0表示无类型 */
+        if (field->type_name != NULL) {
+            XrString *type_name = xr_string_new(field->type_name, strlen(field->type_name));
+            type_name_idx = xr_bc_proto_add_constant(compiler->proto, XR_OBJ_TO_VAL(type_name));
+        }
+        
+        /* 发射 OP_ADDFIELD 指令 */
+        xr_emit_ABC(ctx, compiler, OP_ADDFIELD, class_reg, field_name_idx, type_name_idx);
+    }
+    
+    /* 如果有超类，设置继承 */
+    if (node->super_name != NULL) {
+        /* 加载超类 */
+        XrString *super_name = xr_string_new(node->super_name, strlen(node->super_name));
+        int super_global = get_or_add_global(ctx, compiler, super_name);
+        int super_reg = xr_allocreg(ctx, compiler);
+        xr_emit_ABx(ctx, compiler, OP_GETGLOBAL, super_reg, super_global);
+        
+        /* 设置继承关系 */
+        xr_emit_ABC(ctx, compiler, OP_INHERIT, class_reg, super_reg, 0);
+        xr_freereg(compiler, super_reg);
+    }
+    
+    /* 编译所有方法 */
+    for (int i = 0; i < node->method_count; i++) {
+        AstNode *method_node = node->methods[i];
+        
+        if (method_node->type != AST_METHOD_DECL) {
+            continue;
+        }
+        
+        MethodDeclNode *method = &method_node->as.method_decl;
+        
+        /* 编译方法函数 */
+        Compiler method_compiler;
+        xr_compiler_init(ctx, &method_compiler, FUNCTION_FUNCTION);
+        method_compiler.enclosing = compiler;
+        
+        /* 设置方法名 */
+        XrString *method_name_str = xr_string_new(method->name, strlen(method->name));
+        method_compiler.proto->name = method_name_str;
+        
+        /* 设置参数数量（this + 显式参数） */
+        method_compiler.proto->numparams = method->param_count + 1;
+        
+        /* 参数0是this（隐式） */
+        XrString *this_name = xr_string_new("this", 4);
+        int this_reg = xr_allocreg(ctx, &method_compiler);
+        define_local_with_reg(ctx, &method_compiler, this_name, this_reg);
+        
+        /* 添加显式参数 */
+        for (int p = 0; p < method->param_count; p++) {
+            XrString *param_name = xr_string_new(method->parameters[p], 
+                                                strlen(method->parameters[p]));
+            int param_reg = xr_allocreg(ctx, &method_compiler);
+            define_local_with_reg(ctx, &method_compiler, param_name, param_reg);
+        }
+        
+        /* 编译方法体 */
+        xr_compile_statement(ctx, &method_compiler, method->body);
+        
+        /* 如果是构造函数，自动添加 return this */
+        if (method->is_constructor || strcmp(method->name, "constructor") == 0) {
+            /* this在寄存器0 */
+            xr_emit_ABC(ctx, &method_compiler, OP_RETURN, 0, 1, 0);
+        }
+        
+        /* 结束方法编译 */
+        Proto *method_proto = xr_compiler_end(ctx, &method_compiler);
+        
+        if (method_proto != NULL) {
+            /* 将方法添加到类 */
+            int proto_idx = xr_bc_proto_add_proto(compiler->proto, method_proto);
+            int method_reg = xr_allocreg(ctx, compiler);
+            xr_emit_ABx(ctx, compiler, OP_CLOSURE, method_reg, proto_idx);
+            
+            /* v0.20.0: 使用Symbol代替方法名字符串 */
+            int method_symbol = symbol_get_or_create(global_method_symbols, method->name);
+            
+            /* OP_METHOD: class_reg[method_symbol] = method_closure */
+            /* 注意：现在B参数是symbol（整数），不再是常量索引 */
+            xr_emit_ABC(ctx, compiler, OP_METHOD, class_reg, method_symbol, method_reg);
+            xr_freereg(compiler, method_reg);
+        }
+    }
+    
+    /* 将类对象存储为全局变量 */
+    int global_index = get_or_add_global(ctx, compiler, class_name);
+    xr_emit_ABx(ctx, compiler, OP_SETGLOBAL, class_reg, global_index);
+    xr_freereg(compiler, class_reg);
+}
+
+/*
+** 编译new表达式
+** new Number(10)
+*/
+static int compile_new_expr(CompilerContext *ctx, Compiler *compiler, NewExprNode *node) {
+    /* 加载类对象 */
+    XrString *class_name = xr_string_new(node->class_name, strlen(node->class_name));
+    int global_index = get_or_add_global(ctx, compiler, class_name);
+    int class_reg = xr_allocreg(ctx, compiler);
+    xr_emit_ABx(ctx, compiler, OP_GETGLOBAL, class_reg, global_index);
+    
+    /* 编译构造参数 */
+    for (int i = 0; i < node->arg_count; i++) {
+        int arg_reg = xr_compile_expression(ctx, compiler, node->arguments[i]);
+        /* 参数应该在连续的寄存器中 */
+        if (arg_reg != class_reg + 1 + i) {
+            /* 如果不连续，需要移动 */
+            xr_emit_ABC(ctx, compiler, OP_MOVE, class_reg + 1 + i, arg_reg, 0);
+            xr_freereg(compiler, arg_reg);
+        }
+    }
+    
+    /* 调用构造函数 */
+    /* v0.20.0: 使用预定义的SYMBOL_CONSTRUCTOR */
+    /* OP_INVOKE: class_reg.constructor(args) */
+    int constructor_symbol = SYMBOL_CONSTRUCTOR;  /* 预定义symbol = 0 */
+    
+    /* INVOKE 指令：R[A] = R[B]:method(args) */
+    /* A=结果寄存器, B=对象寄存器, C=参数数量 */
+    /* 注意：现在B参数是symbol，不再是常量索引 */
+    xr_emit_ABC(ctx, compiler, OP_INVOKE, class_reg, constructor_symbol, node->arg_count);
+    
+    return class_reg;  /* 返回实例所在的寄存器 */
+}
+
+/*
+** 编译成员访问
+** obj.field 或 obj.method
+*/
+static int compile_member_access(CompilerContext *ctx, Compiler *compiler, MemberAccessNode *node) {
+    /* 编译对象表达式 */
+    int obj_reg = xr_compile_expression(ctx, compiler, node->object);
+    
+    /* 生成属性访问指令 */
+    XrString *prop_name = xr_string_new(node->name, strlen(node->name));
+    int name_idx = xr_bc_proto_add_constant(compiler->proto, XR_OBJ_TO_VAL(prop_name));
+    
+    int result_reg = xr_allocreg(ctx, compiler);
+    xr_emit_ABC(ctx, compiler, OP_GETPROP, result_reg, obj_reg, name_idx);
+    
+    xr_freereg(compiler, obj_reg);
+    return result_reg;
+}
+
+/*
+** 编译成员赋值
+** obj.field = value
+*/
+static void compile_member_set(CompilerContext *ctx, Compiler *compiler, MemberSetNode *node) {
+    /* 编译对象表达式 */
+    int obj_reg = xr_compile_expression(ctx, compiler, node->object);
+    
+    /* 编译值表达式 */
+    int value_reg = xr_compile_expression(ctx, compiler, node->value);
+    
+    /* 生成属性设置指令 */
+    XrString *prop_name = xr_string_new(node->member, strlen(node->member));
+    int name_idx = xr_bc_proto_add_constant(compiler->proto, XR_OBJ_TO_VAL(prop_name));
+    
+    xr_emit_ABC(ctx, compiler, OP_SETPROP, obj_reg, name_idx, value_reg);
+    
+    xr_freereg(compiler, value_reg);
+    xr_freereg(compiler, obj_reg);
 }
 

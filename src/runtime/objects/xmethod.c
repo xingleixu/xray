@@ -50,6 +50,10 @@ XrMethod* xr_method_new(XrayState *X, const char *name,
     method->is_getter = false;
     method->is_setter = false;
     
+    /* v0.19.0：初始化运算符相关字段 */
+    method->is_operator = false;
+    method->op_type = OP_BINARY;  /* 默认值 */
+    
     return method;
 }
 
@@ -100,6 +104,15 @@ void xr_method_mark_getter(XrMethod *method) {
 void xr_method_mark_setter(XrMethod *method) {
     assert(method != NULL);
     method->is_setter = true;
+}
+
+/*
+** 设置方法为运算符重载（v0.19.0新增）
+*/
+void xr_method_mark_operator(XrMethod *method, OperatorType op_type) {
+    assert(method != NULL);
+    method->is_operator = true;
+    method->op_type = op_type;
 }
 
 /*
